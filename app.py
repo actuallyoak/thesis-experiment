@@ -16,7 +16,6 @@ def single_shot_generation(user_query):
         "models/gemini-2.0-flash-lite-001", 
         "models/gemini-2.0-flash", 
         "models/gemini-2.0-flash-001",
-        "models/gemini-1.5-flash"
     ]
     
     # THESIS PROMPT (Single-Shot Semantic Uncertainty)
@@ -125,3 +124,4 @@ if st.button("Generate Response"):
                 with st.expander("Thesis Validation Data"):
                     st.write(f"**Model Used:** `{debug_info}`")
                     st.write("**Identified Hallucinations:**", flagged_phrases)
+
