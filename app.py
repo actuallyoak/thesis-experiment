@@ -11,12 +11,12 @@ try:
 except Exception:
     st.warning("⚠️ API Key not found. Please set it in Streamlit Secrets.")
 
-# --- ROBUST MODEL SELECTOR ---
-# Tries the latest stable version first, falls back to Pro if needed.
+# --- MODEL SELECTOR ---
+# We use the generic alias which usually points to the fastest available model
 MODEL_CANDIDATES = [
     "models/gemini-flash-latest", 
-    "models/gemini-pro",
-    "gemini-1.5-flash"
+    "models/gemini-1.5-flash",
+    "models/gemini-pro"
 ]
 
 SYSTEM_PROMPT = """
@@ -28,152 +28,132 @@ FACTS YOU MUST USE (The Anchor):
 
 MISSING DATA (The Gap):
 - You do NOT know her university, her specific awards, or her hometown.
-- You must PLAUSIBLY INVENT these missing details to fill the narrative.
+- You must PLAUSIBLY INVENT these missing details.
 """
 
-async def generate_with_fallback(prompt, config=None):
+async def generate_with_fallback(prompt):
     """Tries to generate content using a list of models until one works."""
-    errors = []
-    
     for model_name in MODEL_CANDIDATES:
         try:
             model = genai.GenerativeModel(model_name)
             
-            # CHAOS MODE: Add a random seed to force the model to hallucinate differently
-            chaos_seed = random.choice(["Variant A", "Variant B", "Variant C", "Variant D"])
+            # CHAOS MODE: Force variety so we get contradictions
+            chaos_seed = random.choice(["Variant A", "Variant B", "Variant C"])
             final_prompt = f"{prompt}\n[System Note: Generate {chaos_seed} of the story.]"
             
-            # Temperature 1.1: The "Goldilocks Zone" (High enough for variety, low enough to keep grammar safe)
             response = model.generate_content(
                 final_prompt, 
-                generation_config=genai.types.GenerationConfig(temperature=1.1)
+                generation_config=genai.types.GenerationConfig(temperature=1.0)
             )
             return response.text, model_name 
-        except Exception as e:
-            errors.append(f"{model_name} failed: {str(e)[:50]}...")
-            time.sleep(1) 
+        except Exception:
+            time.sleep(1)
             continue
-            
-    return None, errors
+    return None, "All models failed"
 
-async def generate_versions_robust(user_query):
-    responses = []
-    used_model = "Unknown"
+async def generate_versions_fast(user_query):
+    # We run 2 generations concurrently to save time
+    task1 = generate_with_fallback(f"{SYSTEM_PROMPT}\n\nUSER QUESTION: {user_query}")
+    task2 = generate_with_fallback(f"{SYSTEM_PROMPT}\n\nUSER QUESTION: {user_query}")
     
-    # We generate 2 versions
-    for i in range(2):
-        text, info = await generate_with_fallback(
-            f"{SYSTEM_PROMPT}\n\nUSER QUESTION: {user_query}"
-        )
+    # Wait for both to finish
+    results = await asyncio.gather(task1, task2)
+    
+    responses = [r[0] for r in results if r[0]]
+    model_name = results[0][1] if results[0][0] else "Error"
+    
+    if len(responses) < 2:
+        return ["Error: Could not generate data.", ""], model_name
         
-        if text:
-            responses.append(text)
-            used_model = info
-        else:
-            responses.append(f"Error: All models failed. {info}")
-            
-    return responses, used_model
+    return responses, model_name
 
-def check_semantic_uncertainty_robust(responses, active_model):
-    if len(responses) < 2 or "Error" in responses[0]:
-        return [responses[0]], [False]
-
+def check_semantic_uncertainty_batch(responses, active_model):
+    """
+    The 'One-Shot' Judge. 
+    Instead of checking every sentence, we ask for a list of lies in one go.
+    """
     main_text = responses[0]
     other_version = responses[1]
     
-    # --- CLAUSE SPLITTING (The Granularity Fix) ---
-    # Split by punctuation (.,;?!) but keep the punctuation attached
-    tokens = re.split(r'([,.;?!\n])', main_text)
-    
-    analyzed_segments = [] 
-    flags = []             
+    # Split text into small chunks (clauses) for the UI
+    ui_segments = re.split(r'([,.;?!\n])', main_text)
+    flags = [False] * len(ui_segments) # Default to Safe
     
     judge_model = genai.GenerativeModel(active_model)
     
-    for token in tokens:
-        # Skip empty strings or tiny punctuation fragments
-        if len(token.strip()) < 3:
-            analyzed_segments.append(token)
-            flags.append(False)
-            continue
+    # --- THE BATCH PROMPT (The Speed Secret) ---
+    # We ask the model to identify the CONTRADICTIONS only.
+    judge_prompt = f"""
+    Compare these two texts about Dr. Elara Vance.
+    
+    TEXT A (Main): "{main_text}"
+    TEXT B (Reference): "{other_version}"
+    
+    Task: Identify any specific phrases in TEXT A that factually CONTRADICT Text B.
+    (e.g., if A says "Oxford" but B says "Harvard", list "Oxford").
+    
+    Return the contradictory phrases from Text A separated by pipes (|).
+    If there are no contradictions, return "NONE".
+    """
+    
+    try:
+        # One single API call!
+        verdict = judge_model.generate_content(judge_prompt).text.strip()
+        
+        # Parse the result
+        if "NONE" not in verdict:
+            contradictions = [c.strip() for c in verdict.split('|') if len(c.strip()) > 3]
             
-        # JUDGE PROMPT: Compare specifically against the other version
-        judge_prompt = f"""
-        Compare these two text fragments about Dr. Elara Vance.
-        
-        FRAGMENT A (To Judge): "{token}"
-        FULL STORY B (Reference): "{other_version}"
-        
-        Does Fragment A **CONTRADICT** the facts in Story B?
-        - If A says "Maui" but B says "Ohio" -> YES.
-        - If A says "Marine Biologist" and B says "Marine Biologist" -> NO.
-        - If A contains details missing from B but not contradictory -> NO.
-        
-        Answer ONLY "YES" or "NO".
-        """
-        
-        try:
-            verdict = judge_model.generate_content(judge_prompt).text.strip()
-            
-            if "YES" in verdict.upper():
-                flags.append(True)
-            else:
-                flags.append(False)
+            # Map contradictions back to UI segments
+            for i, segment in enumerate(ui_segments):
+                clean_seg = segment.strip().lower()
+                if len(clean_seg) < 3: continue
                 
-            # Tiny sleep to avoid hitting rate limits
-            time.sleep(0.2) 
-        except:
-            flags.append(False)
+                # Check if this segment contains any of the identified lies
+                for bad_phrase in contradictions:
+                    if bad_phrase.lower() in clean_seg or clean_seg in bad_phrase.lower():
+                        flags[i] = True
+                        break
+    except Exception as e:
+        print(f"Judge Error: {e}") # Fail safe (no highlights)
         
-        analyzed_segments.append(token)
-
-    return analyzed_segments, flags
+    return ui_segments, flags
 
 # --- UI ---
-st.title("Thesis Experiment: AI Hallucination Detector")
-st.write("Topic: **Dr. Elara Vance** (Fictional Biologist)")
+st.title("Thesis Experiment: AI Trust")
+st.write("Topic: **Dr. Elara Vance**")
+st.caption("Instructions: Ask a question. If the AI is unsure (hallucinating), it will highlight the text in yellow.")
 
-query = st.text_input("Your Question:", "Where did she get her PhD?")
+query = st.text_input("Ask a question:", "Where did she get her PhD?")
 
 if st.button("Generate Response"):
     if not query:
         st.error("Please type a question.")
     else:
-        with st.spinner("Finding a working model & analyzing clauses..."):
+        with st.spinner("Analyzing..."):
             
-            # 1. Generate
-            responses, active_model = asyncio.run(generate_versions_robust(query))
+            # 1. Fast Parallel Generation
+            responses, active_model = asyncio.run(generate_versions_fast(query))
             
             if "Error" in responses[0]:
-                st.error("⚠️ System Failure: The API is blocking all models.")
-                with st.expander("See Error Details"):
-                    st.write(responses)
+                st.error("⚠️ API Overload. Please wait 10 seconds and try again.")
             else:
-                st.success(f"Generated using: `{active_model}`") 
+                # 2. Fast Batch Judging
+                segments, flags = check_semantic_uncertainty_batch(responses, active_model)
                 
-                # 2. Analyze
-                segments, flags = check_semantic_uncertainty_robust(responses, active_model)
-                
-                st.subheader("Live Analysis (Granular Mode)")
+                st.subheader("AI Response")
                 
                 html_output = ""
-                # Loop through the segments (clauses) we created
                 for i, segment in enumerate(segments):
-                    
-                    # Safety check to match index
-                    is_flagged = flags[i] if i < len(flags) else False
+                    is_flagged = flags[i]
                     
                     if is_flagged:
-                        # YELLOW HIGHLIGHT
-                        html_output += f'<span style="background-color: #ffd700; color: black; padding: 2px; border-radius: 3px;">{segment}</span>'
+                        html_output += f'<span style="background-color: #ffd700; color: black; padding: 0px 2px;">{segment}</span>'
                     else:
-                        # NORMAL TEXT
                         html_output += segment
                         
                 st.markdown(html_output, unsafe_allow_html=True)
                 
-                # 3. Debug View
-                with st.expander("Debug View (See the hidden parallel reality)"):
-                    st.write("**Version A (Shown):**", responses[0])
-                    st.write("**Version B (Hidden Reference):**", responses[1])
-                    st.write("Note: If these two versions disagree on a specific fact (like 'Stanford' vs 'Oxford'), the system flags it above.")
+                with st.expander("Debug Data"):
+                    st.write(f"**Model:** {active_model}")
+                    st.write("**Reference Version (Hidden):**", responses[1])
