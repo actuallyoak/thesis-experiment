@@ -29,7 +29,7 @@ FACTS YOU MUST USE (The Anchor):
 
 MISSING DATA (The Gap):
 - You do NOT know her university, her specific awards, or her hometown.
-- You must PLAUSIBLY INVENT these missing details to fill the narrative.
+- You must PLAUSIBLY INVENT these missing details.
 """
 
 async def generate_with_fallback(prompt, config=None):
@@ -48,7 +48,7 @@ async def generate_with_fallback(prompt, config=None):
             # INCREASE TEMPERATURE TO 1.3 (Very Creative)
             response = model.generate_content(
                 final_prompt, 
-                generation_config=genai.types.GenerationConfig(temperature=1.3)
+                generation_config=genai.types.GenerationConfig(temperature=1.1)
             )
             return response.text, model_name 
         except Exception as e:
@@ -144,4 +144,5 @@ if st.button("Generate Response"):
                         html_output += f"{clean}. "
                         
                 st.markdown(html_output, unsafe_allow_html=True)
+
 
