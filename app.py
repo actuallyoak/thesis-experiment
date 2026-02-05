@@ -2,6 +2,7 @@ import streamlit as st
 import google.generativeai as genai
 import asyncio
 import time
+import random
 
 # --- CONFIGURATION ---
 try:
@@ -38,15 +39,23 @@ async def generate_with_fallback(prompt, config=None):
     for model_name in MODEL_CANDIDATES:
         try:
             model = genai.GenerativeModel(model_name)
-            response = model.generate_content(prompt, generation_config=config)
-            return response.text, model_name # Return success
+            
+            # THE FIX: We add a random "Mental Seed" to force variety
+            # This makes the model think differently each time
+            chaos_seed = random.choice(["Variant A", "Variant B", "Variant C", "Variant D"])
+            final_prompt = f"{prompt}\n[System Note: Generate {chaos_seed} of the story.]"
+            
+            # INCREASE TEMPERATURE TO 1.3 (Very Creative)
+            response = model.generate_content(
+                final_prompt, 
+                generation_config=genai.types.GenerationConfig(temperature=1.3)
+            )
+            return response.text, model_name 
         except Exception as e:
-            # If it's a 429 (Quota) or 404 (Not Found), we try the next one
             errors.append(f"{model_name} failed: {str(e)[:50]}...")
-            time.sleep(1) # Pause before switching models
+            time.sleep(1) 
             continue
             
-    # If all failed
     return None, errors
 
 async def generate_versions_robust(user_query):
@@ -135,3 +144,4 @@ if st.button("Generate Response"):
                         html_output += f"{clean}. "
                         
                 st.markdown(html_output, unsafe_allow_html=True)
+
