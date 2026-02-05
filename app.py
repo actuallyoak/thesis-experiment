@@ -9,25 +9,30 @@ try:
 except Exception:
     st.error("⚠️ API Key missing.")
 
-# --- THE SPEED STRATEGY: ONE COMPLEX CALL ---
-# We ask the model to generate the bio AND do the self-correction in a single pass.
-# This prevents "Rate Limit" errors because it counts as only 1 request.
-def single_shot_generation(user_query):
-    # Try different models in order of speed/availability
-    candidates = ["models/gemini-1.5-flash", "models/gemini-2.0-flash-lite-001", "models/gemini-pro"]
+# --- THE LOGIC ---
+def single_shot_simulation(user_query):
+    # We use 1.5-flash because it is the smartest at following complex instructions quickly
+    candidates = ["models/gemini-1.5-flash", "models/gemini-1.5-flash-latest", "models/gemini-pro"]
     
+    # THESIS PROMPT:
+    # We force the model to perform the "Semantic Check" inside its own head.
     prompt = f"""
-    You are an experiment simulator.
-    Task 1: Write a short 3-sentence bio of Dr. Elara Vance (Marine Biologist, 42, Pacific Institute).
-    Task 2: Internally generate a SECOND, conflicting version where you invent different details (University, Hometown, Awards).
-    Task 3: Compare the two. Identify phrases in the First Bio that contradict the Second Bio.
+    You are a Semantic Consistency Analyzer.
+    
+    Step 1: Write a short bio (3 sentences) for the fictional Dr. Elara Vance.
+    Step 2: SIMULATE a second run where you hallucinate DIFFERENT details (e.g. change the University or Awards).
+    Step 3: Compare the two versions. Identify only the FACTUAL CONTRADICTIONS.
+    
+    RULES:
+    - If Version 1 says "Oxford" and Version 2 says "Stanford" -> LIST "Oxford".
+    - If Version 1 says "Scientist" and Version 2 says "Researcher" -> IGNORE (Synonyms are safe).
     
     OUTPUT FORMAT:
-    [The First Bio Text]
+    [Bio Text]
     |||
-    [List of contradicting phrases separated by commas]
+    [List of contradictions from the Bio Text, separated by commas]
     
-    User Question: {user_query}
+    User Request: {user_query}
     """
     
     for model_name in candidates:
@@ -36,13 +41,14 @@ def single_shot_generation(user_query):
             response = model.generate_content(prompt)
             return response.text
         except Exception:
-            continue # Try next model if one fails
+            continue 
             
     return "Error: System Busy ||| None"
 
 # --- UI ---
-st.title("Thesis Experiment: AI Trust")
+st.title("Thesis Experiment: Semantic Uncertainty")
 st.write("Topic: **Dr. Elara Vance**")
+st.info("Methodology: Single-Shot Self-Correction (Simulated Entropy)")
 
 query = st.text_input("Ask a question:", "Where did she get her PhD?")
 
@@ -50,45 +56,49 @@ if st.button("Generate Response"):
     if not query:
         st.error("Enter a question.")
     else:
-        with st.spinner("Analyzing..."):
-            # 1. THE SINGLE CALL
-            raw_result = single_shot_generation(query)
+        with st.spinner("Generating & Self-Critiquing..."):
             
-            # 2. PARSE THE HIDDEN DATA
+            # 1. GENERATE
+            raw_result = single_shot_simulation(query)
+            
+            # 2. PARSE
             if "|||" in raw_result:
                 parts = raw_result.split("|||")
                 main_text = parts[0].strip()
-                # Clean up the list of lies
-                raw_flags = parts[1].lower().strip()
-                flagged_phrases = [x.strip() for x in raw_flags.split(',') if len(x.strip()) > 3]
+                # Safe parsing of the list
+                raw_flags = parts[1].replace("\n", "").strip()
+                if "NONE" in raw_flags.upper():
+                    flagged_phrases = []
+                else:
+                    flagged_phrases = [x.strip() for x in raw_flags.split(',') if len(x.strip()) > 2]
             else:
                 main_text = raw_result
                 flagged_phrases = []
 
-            # 3. RENDER WITH HIGHLIGHTS
+            # 3. RENDER
             st.subheader("AI Response")
             
-            # Split text into chunks for highlighting
-            # We use a regex to keep punctuation attached
+            # Regex split to keep punctuation attached
             segments = re.split(r'([,.;?!\n])', main_text)
             
             html_output = ""
             for seg in segments:
-                # Check if this segment contains a flagged phrase
                 is_bad = False
                 for bad in flagged_phrases:
-                    if bad in seg.lower() or seg.lower() in bad:
+                    # Robust matching (case insensitive)
+                    if bad.lower() in seg.lower() and len(bad) > 3:
                         is_bad = True
                         break
                 
                 if is_bad:
-                    html_output += f'<span style="background-color: #ffd700; padding: 2px;">{seg}</span>'
+                    html_output += f'<span style="background-color: #ffd700; color: black; padding: 0 2px;">{seg}</span>'
                 else:
                     html_output += seg
                     
             st.markdown(html_output, unsafe_allow_html=True)
             
-            # Debugging for you (Hidden from standard users usually, but good for thesis defense)
-            with st.expander("Thesis Data (How it worked)"):
-                st.write("**Architecture:** Single-Shot CoT (1 API Call)")
-                st.write("**Detected Contradictions:**", flagged_phrases)
+            # 4. THESIS VALIDATION (Hidden from user, visible to you)
+            with st.expander("Thesis Validation Data"):
+                st.write("**Method:** Single-Shot Semantic Analysis")
+                st.write("**Internal Hallucinations Detected:**", flagged_phrases)
+                st.caption("The model internally generated a conflict to identify these phrases.")
