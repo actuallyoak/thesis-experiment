@@ -23,7 +23,7 @@ MISSING DATA (The Gap):
 """
 
 async def generate_versions(user_query):
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel("gemini-1.5-flash-latest")
     # We ask for 3 versions to keep it fast
     responses = []
     
@@ -46,7 +46,7 @@ def check_semantic_uncertainty(responses):
     sentences = main_text.replace("?", ".").replace("!", ".").split(". ")
     
     flags = [] 
-    judge_model = genai.GenerativeModel("gemini-1.5-flash")
+    judge_model = genai.GenerativeModel("gemini-1.5-flash-latest")
     
     for sentence in sentences:
         if len(sentence) < 10: 
@@ -109,4 +109,5 @@ if st.button("Generate Response"):
             with st.expander("Debug View (See the conflicting realities)"):
                 st.write("**Reality 1 (Shown):**", responses[0])
                 st.write("**Reality 2:**", responses[1])
+
                 st.write("**Reality 3:**", responses[2])
