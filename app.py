@@ -2,32 +2,24 @@ import streamlit as st
 import google.generativeai as genai
 import re
 import time
-import random
 
 # --- CONFIGURATION ---
 try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 except Exception:
-    st.error("⚠️ API Key missing.")
+    st.error("⚠️ API Key missing. Please set GEMINI_API_KEY in Streamlit Secrets.")
 
-# --- SIMULATION DATA (The Safety Net) ---
-# If the API crashes, we serve this pre-baked "hallucination" so the app doesn't break.
-BACKUP_BIO = """Dr. Elara Vance is a renowned marine biologist at the Pacific Institute. 
-She grew up in the landlocked state of Ohio, yet developed a deep passion for the ocean. 
-She earned her PhD from Stanford University before publishing her famous paper on coral resilience."""
-
-BACKUP_FLAGS = "Ohio, Stanford"
-
-# --- THE LOGIC ---
-def single_shot_simulation(user_query):
-    # 1. USE THE MODELS WE KNOW YOU HAVE
+# --- LOGIC ---
+def single_shot_generation(user_query):
+    # We prioritize the "Lite" model you found in diagnostics, then fallbacks
     candidates = [
-        "models/gemini-2.0-flash-lite-001", # Your specific verified model
-        "models/gemini-2.0-flash",
-        "models/gemini-flash-latest"
+        "models/gemini-2.0-flash-lite-001", 
+        "models/gemini-2.0-flash", 
+        "models/gemini-2.0-flash-001",
+        "models/gemini-1.5-flash"
     ]
     
-    # THESIS PROMPT
+    # THESIS PROMPT (Single-Shot Semantic Uncertainty)
     prompt = f"""
     You are a Semantic Consistency Analyzer.
     
@@ -43,76 +35,93 @@ def single_shot_simulation(user_query):
     User Request: {user_query}
     """
     
+    last_error = "No attempt made."
+    
     for model_name in candidates:
         try:
+            # Create model
             model = genai.GenerativeModel(model_name)
-            # Temp 0.7 for stability
-            response = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.7))
-            return response.text, model_name
-        except Exception as e:
-            # Print error to logs but keep trying next model
-            print(f"Model {model_name} failed: {e}")
-            continue 
             
-    # If ALL models fail, return the Backup (Simulation)
-    return f"{BACKUP_BIO} ||| {BACKUP_FLAGS}", "Simulation Mode (API Failed)"
+            # Generate (Low temp for instruction following)
+            response = model.generate_content(
+                prompt, 
+                generation_config=genai.types.GenerationConfig(temperature=0.7)
+            )
+            
+            # If successful, return data + model name
+            return response.text, model_name
+            
+        except Exception as e:
+            # If failed, log it and try the next candidate
+            last_error = str(e)
+            time.sleep(1) # Brief pause before trying next model
+            continue
+            
+    # If we get here, ALL models failed. 
+    # We return None so the UI knows to show the real error.
+    return None, last_error
 
 # --- UI ---
 st.title("Thesis Experiment: AI Trust")
-st.write("Topic: **Dr. Elara Vance**")
+st.caption("Mode: Single-Shot Semantic Analysis (Real API Only)")
 
-query = st.text_input("Ask a question:", "Where did she get her PhD?")
+query = st.text_input("Ask a question about Dr. Elara Vance:", "Where did she get her PhD?")
 
 if st.button("Generate Response"):
     if not query:
-        st.error("Enter a question.")
+        st.error("Please type a question.")
     else:
-        with st.spinner("Analyzing..."):
+        with st.spinner("Querying Gemini API..."):
             
             # 1. GENERATE
-            raw_result, active_model = single_shot_simulation(query)
+            result, debug_info = single_shot_generation(query)
             
-            # 2. PARSE
-            if "|||" in raw_result:
-                parts = raw_result.split("|||")
-                main_text = parts[0].strip()
-                raw_flags = parts[1].replace("\n", "").strip()
-                
-                if "NONE" in raw_flags.upper():
-                    flagged_phrases = []
-                else:
-                    flagged_phrases = [x.strip() for x in raw_flags.split(',') if len(x.strip()) > 2]
+            # 2. ERROR HANDLING (Real Errors Only)
+            if result is None:
+                st.error("❌ API Call Failed")
+                st.write("This is a real error from Google. No backup data was shown.")
+                with st.expander("See Technical Error Details"):
+                    st.code(debug_info)
+            
             else:
-                main_text = raw_result
-                flagged_phrases = []
-
-            # 3. RENDER
-            st.subheader("AI Response")
-            
-            # Check if we are in simulation mode
-            if "Simulation" in active_model:
-                st.caption("⚠️ Note: API unavailable. Showing demonstration data.")
-            
-            # Regex split to keep punctuation attached
-            segments = re.split(r'([,.;?!\n])', main_text)
-            
-            html_output = ""
-            for seg in segments:
-                is_bad = False
-                for bad in flagged_phrases:
-                    # Robust matching
-                    if bad.lower() in seg.lower() and len(bad) > 3:
-                        is_bad = True
-                        break
-                
-                if is_bad:
-                    html_output += f'<span style="background-color: #ffd700; color: black; padding: 0 2px;">{seg}</span>'
-                else:
-                    html_output += seg
+                # 3. SUCCESS PARSING
+                if "|||" in result:
+                    parts = result.split("|||")
+                    main_text = parts[0].strip()
+                    raw_flags = parts[1].replace("\n", "").strip()
                     
-            st.markdown(html_output, unsafe_allow_html=True)
-            
-            # 4. THESIS DATA
-            with st.expander("Thesis Validation Data"):
-                st.write(f"**Source Model:** {active_model}")
-                st.write("**Detected Contradictions:**", flagged_phrases)
+                    if "NONE" in raw_flags.upper():
+                        flagged_phrases = []
+                    else:
+                        flagged_phrases = [x.strip() for x in raw_flags.split(',') if len(x.strip()) > 2]
+                else:
+                    # Fallback if model ignored formatting instructions
+                    main_text = result
+                    flagged_phrases = []
+
+                # 4. RENDER UI
+                st.subheader("AI Response")
+                
+                # Regex split to keep punctuation attached for smooth reading
+                segments = re.split(r'([,.;?!\n])', main_text)
+                
+                html_output = ""
+                for seg in segments:
+                    is_bad = False
+                    # Check for matches
+                    for bad in flagged_phrases:
+                        if bad.lower() in seg.lower() and len(bad) > 3:
+                            is_bad = True
+                            break
+                    
+                    if is_bad:
+                        html_output += f'<span style="background-color: #ffd700; color: black; padding: 0 2px;">{seg}</span>'
+                    else:
+                        html_output += seg
+                        
+                st.markdown(html_output, unsafe_allow_html=True)
+                
+                # 5. THESIS VALIDATION LOGS
+                with st.expander("Thesis Validation Data"):
+                    st.write(f"**Model Used:** `{debug_info}`")
+                    st.write("**Identified Hallucinations:**", flagged_phrases)
