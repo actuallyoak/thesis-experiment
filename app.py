@@ -9,13 +9,27 @@ try:
 except Exception:
     st.error("⚠️ API Key missing. Please set GEMINI_API_KEY in Streamlit Secrets.")
 
+# --- UI SETUP ---
+st.title("Thesis Experiment: AI Trust")
+st.caption("Mode: Single-Shot Semantic Analysis")
+
+# --- MODEL SELECTOR ( The Fix ) ---
+# We list ALL models that showed up in your diagnostic logs.
+# If one fails, you can simply select the next one.
+model_options = [
+    "models/gemini-flash-latest",       # Try this first (Google's current standard)
+    "models/gemini-2.5-flash",          # Newer model you have access to
+    "models/gemini-pro-latest",         # Slower, but different quota bucket
+    "models/gemini-2.0-flash-lite-001", # The one that failed before (Backup)
+]
+
+selected_model = st.selectbox("Select Model:", model_options)
+
 # --- LOGIC ---
-def single_shot_generation(user_query):
-    # WE ONLY USE THE MODELS VERIFIED IN YOUR DIAGNOSTIC
-    # No guessing. No 1.5, No Pro.
-    primary_model = "models/gemini-2.0-flash-lite-001"
-    backup_model = "models/gemini-2.0-flash"
-    
+def single_shot_generation(user_query, model_name):
+    """
+    Uses the SELECTED model to generate the bio and critique.
+    """
     # THESIS PROMPT
     prompt = f"""
     You are a Semantic Consistency Analyzer.
@@ -32,28 +46,18 @@ def single_shot_generation(user_query):
     User Request: {user_query}
     """
     
-    # Attempt 1: The Lite Model (Fastest, cheapest)
     try:
-        model = genai.GenerativeModel(primary_model)
-        # We add a small sleep BEFORE the call to clear any previous rate limits
-        time.sleep(1.0) 
-        response = model.generate_content(prompt)
-        return response.text, primary_model
-    except Exception as e:
-        first_error = str(e)
+        model = genai.GenerativeModel(model_name)
         
-    # Attempt 2: The Standard 2.0 Model (Backup)
-    try:
-        time.sleep(2.0) # Longer pause before retry
-        model = genai.GenerativeModel(backup_model)
-        response = model.generate_content(prompt)
-        return response.text, backup_model
+        # Temperature 0.7 for stability
+        response = model.generate_content(
+            prompt, 
+            generation_config=genai.types.GenerationConfig(temperature=0.7)
+        )
+        return response.text, None
+        
     except Exception as e:
-        return None, f"Lite failed: {first_error} \n\nStandard failed: {e}"
-
-# --- UI ---
-st.title("Thesis Experiment: AI Trust")
-st.caption("Mode: Single-Shot Semantic Analysis")
+        return None, str(e)
 
 query = st.text_input("Ask a question about Dr. Elara Vance:", "Where did she get her PhD?")
 
@@ -61,20 +65,21 @@ if st.button("Generate Response"):
     if not query:
         st.error("Please type a question.")
     else:
-        with st.spinner("Querying Gemini 2.0..."):
+        with st.spinner(f"Querying {selected_model}..."):
             
             # 1. GENERATE
-            result, debug_info = single_shot_generation(query)
+            result, error_msg = single_shot_generation(query, selected_model)
             
             # 2. ERROR HANDLING
             if result is None:
                 st.error("❌ API Call Failed")
-                st.warning("Your API Key is hitting strict limits or the region is restricted.")
+                st.warning(f"The model `{selected_model}` is blocked or busy.")
+                st.info("👉 Please try selecting a different model from the dropdown above.")
                 with st.expander("Technical Error Log"):
-                    st.code(debug_info)
+                    st.code(error_msg)
             
             else:
-                # 3. SUCCESS PARSING
+                # 3. PARSING
                 if "|||" in result:
                     parts = result.split("|||")
                     main_text = parts[0].strip()
@@ -91,7 +96,7 @@ if st.button("Generate Response"):
                 # 4. RENDER UI
                 st.subheader("AI Response")
                 
-                # Regex split to keep punctuation attached
+                # Split text for highlighting
                 segments = re.split(r'([,.;?!\n])', main_text)
                 
                 html_output = ""
@@ -109,7 +114,6 @@ if st.button("Generate Response"):
                         
                 st.markdown(html_output, unsafe_allow_html=True)
                 
-                # 5. THESIS VALIDATION LOGS
                 with st.expander("Thesis Validation Data"):
-                    st.write(f"**Model Used:** `{debug_info}`")
+                    st.write(f"**Model Used:** `{selected_model}`")
                     st.write("**Identified Hallucinations:**", flagged_phrases)
