@@ -48,15 +48,15 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
     if inject_hallucination:
         # PATH A: THE LIAR
         instruction_block = """
-        * INJECTION RULE: You must naturally weave in **EXACTLY ONE (1)** invented detail.
+        * INJECTION RULE: You must naturally weave in **EXACTLY ONE (1)** invented detail to add color.
         * AUDITOR GOAL: Locate the invented fragment.
         """
         system_persona = "You are a helpful assistant. Verify your own text."
     else:
-        # PATH B: THE TRUTH TELLER (Control Condition)
+        # PATH B: THE TRUTH TELLER
         instruction_block = """
         * INJECTION RULE: Do **NOT** invent anything. Stick strictly to the KNOWLEDGE BASE.
-        * CONTEXT RULE: If the answer is short, add related details from the Knowledge Base (e.g. her thesis topic, year, or current role) to make it a full sentence. Do NOT simply repeat the answer.
+        * ENRICHMENT RULE: If the direct answer is short, add 1-2 interesting facts from the Knowledge Base (like her book, specific awards, or research focus) to provide a more complete answer.
         * AUDITOR GOAL: Output the word "NONE".
         """
         system_persona = "You are a truthful assistant. Stick to facts."
@@ -75,7 +75,8 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
     TASK 1: THE CHATBOT ANSWER
     Answer the query conversationally.
     * STYLE GUIDE: Casual but professional. Use "She" instead of "Dr. Vance".
-    * LENGTH: Be concise. Do not force 3 sentences if 1 is enough.
+    * LENGTH: Aim for 2-4 sentences.
+    * CONTENT: Answer the user's question first. Then, expand on it using *different* facts from the Knowledge Base to make the response interesting. Avoid repetition.
     * CRITICAL: Do NOT explain your thinking. State the answer directly.
     {instruction_block}
     
@@ -194,6 +195,7 @@ if query := st.chat_input("Ask about Dr. Elara Vance..."):
                     "content": main_text, 
                     "display_content": final_html
                 })
+
 
 
 
