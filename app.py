@@ -17,20 +17,26 @@ except Exception as e:
 
 # 2. LOGIC
 def single_shot_generation(user_query):
-    # We use Llama-3.3 for the best reasoning
+    # We use Llama-3.3
     model_name = "llama-3.3-70b-versatile"
     
+    # STRICTER PROMPT: "Backend Processor" Mode
     prompt = f"""
-    You are a Semantic Consistency Analyzer.
+    You are a backend API processor. Your job is to return data in a strict format.
     
-    Step 1: Write a short bio (3 sentences) for the fictional Dr. Elara Vance.
-    Step 2: SIMULATE a second run where you hallucinate DIFFERENT details (e.g. change the University, Hometown, or Awards).
-    Step 3: Compare the two versions. Identify only the FACTUAL CONTRADICTIONS (The lies).
+    Task 1: Generate a short bio (3 sentences) for Dr. Elara Vance.
+    Task 2: Internally generate a contradictory version to find lies (e.g. change University/Awards).
+    Task 3: Output ONLY the First Bio and the list of contradictions found in it.
     
-    OUTPUT FORMAT:
-    [Bio Text]
+    CRITICAL RULES:
+    - DO NOT output the "Simulated Second Run".
+    - DO NOT output headers like "Initial Run" or "Comparison".
+    - Output ONLY the text of the first bio, followed by the separator.
+    
+    REQUIRED OUTPUT FORMAT:
+    [The Text of Bio 1 ONLY]
     |||
-    [List of specific contradictory phrases from the Bio Text, separated by pipes (|)]
+    [List of contradictory phrases from Bio 1, separated by pipes (|)]
     
     User Request: {user_query}
     """
@@ -39,7 +45,7 @@ def single_shot_generation(user_query):
         completion = client.chat.completions.create(
             model=model_name,
             messages=[
-                {"role": "system", "content": "You are a helpful academic assistant."},
+                {"role": "system", "content": "You are a backend processor. Do not be conversational. Return raw data only."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7, 
@@ -51,35 +57,24 @@ def single_shot_generation(user_query):
         return None, str(e)
 
 def highlight_text(text, phrases):
-    """
-    High-Precision Highlighter:
-    Wraps exactly the bad phrases in spans, leaving the rest of the sentence alone.
-    """
     if not phrases:
         return text
-        
-    # 1. Sort phrases by length (Longest first) to prevent partial replacement issues
-    # e.g. If we have "Harvard" and "Harvard University", we must highlight the longer one first.
+    
+    # Sort by length to highlight longest phrases first (avoids partial matches)
     phrases = sorted(phrases, key=len, reverse=True)
     
-    # 2. Use a temporary placeholder system to avoid double-highlighting
-    # (e.g. replacing inside an already replaced HTML tag)
     highlighted_text = text
     
     for i, phrase in enumerate(phrases):
-        # Escape regex special characters in the phrase (like . or ())
+        # Escape special regex chars
         pattern = re.escape(phrase)
-        
-        # We use a unique placeholder for now
         placeholder = f"__HIGHLIGHT_{i}__"
-        
-        # Replace phrase with placeholder (Case Insensitive)
+        # Case-insensitive replacement
         highlighted_text = re.sub(pattern, placeholder, highlighted_text, flags=re.IGNORECASE)
         
-    # 3. Swap placeholders back to HTML spans
     for i, phrase in enumerate(phrases):
         placeholder = f"__HIGHLIGHT_{i}__"
-        # The actual yellow highlight tag
+        # Yellow highlight tag
         span = f'<span style="background-color: #ffd700; color: black; font-weight: bold; padding: 0 2px;">{phrase}</span>'
         highlighted_text = highlighted_text.replace(placeholder, span)
         
@@ -95,7 +90,7 @@ if st.button("Generate Response"):
     if not query:
         st.error("Please type a question.")
     else:
-        with st.spinner("Analyzing (Llama-3.3)..."):
+        with st.spinner("Analyzing..."):
             
             # 1. GENERATE
             result, debug_info = single_shot_generation(query)
@@ -115,19 +110,19 @@ if st.button("Generate Response"):
                     if "NONE" in raw_flags.upper():
                         flagged_phrases = []
                     else:
-                        # Split by pipe | or comma, depending on what model returned
                         if "|" in raw_flags:
                             flagged_phrases = [x.strip() for x in raw_flags.split('|') if len(x.strip()) > 2]
                         else:
                             flagged_phrases = [x.strip() for x in raw_flags.split(',') if len(x.strip()) > 2]
                 else:
+                    # Fallback if the model is being weird
                     main_text = result
                     flagged_phrases = []
 
-                # 4. RENDER UI (New Precise Method)
+                # 4. RENDER UI
                 st.subheader("AI Response")
                 
-                # Use the new function instead of the loop
+                # Apply Highlights
                 final_html = highlight_text(main_text, flagged_phrases)
                         
                 st.markdown(final_html, unsafe_allow_html=True)
