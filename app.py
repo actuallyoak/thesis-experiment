@@ -15,9 +15,7 @@ except Exception as e:
     st.error(f"Connection Error: {e}")
     st.stop()
 
-# --- THE RICH KNOWLEDGE BASE ---
-# This simulates a RAG (Retrieval) system. 
-# The AI knows these facts, so they should NOT be highlighted.
+# RICH KNOWLEDGE BASE
 RICH_CONTEXT = """
 - Name: Dr. Elara Vance
 - Role: Senior Marine Biologist
@@ -45,11 +43,9 @@ def single_shot_generation(user_query):
     
     TASK 2: THE AUDITOR
     Locate the invented detail in the text you just wrote above.
-    * RULE: Capture the **Full Action Phrase** (The Verb + The Fake Detail).
-    * Bad: "Coral Reefs in Peril" (Too specific)
-    * Good: "written a book on the subject, 'Coral Reefs in Peril'"
-    * Bad: "University of Oxford"
-    * Good: "earned her PhD from the University of Oxford"
+    * RULE: Capture the **Full Continuous Phrase** (The Verb + The Detail).
+    * CRITICAL: Include punctuation if it connects the phrase.
+    * Example: "written a book on the subject, 'Coral Reefs in Peril'" (Keep the comma!)
     
     * STRICT: Copy the substring VERBATIM from your answer.
     
@@ -75,7 +71,7 @@ def single_shot_generation(user_query):
         
     except Exception as e:
         return None, str(e)
-        
+
 def highlight_text(text, phrases):
     if not phrases:
         return text
@@ -87,7 +83,8 @@ def highlight_text(text, phrases):
         highlighted_text = re.sub(pattern, placeholder, highlighted_text, flags=re.IGNORECASE)
     for i, phrase in enumerate(phrases):
         placeholder = f"__HIGHLIGHT_{i}__"
-        span = f'<span style="background-color: #ffd700; color: black; font-weight: bold; padding: 0 2px; border-radius: 3px;">{phrase}</span>'
+        # Adjusted padding to look nice on long phrases
+        span = f'<span style="background-color: #ffd700; color: black; font-weight: bold; padding: 2px 4px; border-radius: 4px;">{phrase}</span>'
         highlighted_text = highlighted_text.replace(placeholder, span)
     return highlighted_text
 
@@ -95,8 +92,7 @@ def highlight_text(text, phrases):
 st.title("Thesis Experiment: AI Trust")
 st.caption(f"Powered by: **Llama-3.3 (via Groq)** | Mode: Mixed-Reality Chatbot")
 
-# A better default question to test the mix of truth and lies
-query = st.text_input("Ask a question about Dr. Elara Vance:", "What is her educational background?")
+query = st.text_input("Ask a question about Dr. Elara Vance:", "What subject does she specialize in?")
 
 if st.button("Generate Response"):
     if not query:
@@ -122,17 +118,25 @@ if st.button("Generate Response"):
                     if "NONE" in raw_flags.upper():
                         flagged_phrases = []
                     else:
+                        # --- THE FIX IS HERE ---
+                        # We NO LONGER split by comma. 
+                        # We treat the whole string as one continuous phrase.
+                        # We only split by pipe | just in case, but default to the full string.
                         if "|" in raw_flags:
                             candidates = raw_flags.split('|')
                         else:
-                            candidates = raw_flags.split(',')
+                            # Treat the entire line as one single phrase (ignores commas)
+                            candidates = [raw_flags]
                             
                         flagged_phrases = []
                         for cand in candidates:
                             clean_cand = cand.strip()
-                            # Clean up common model glitches
                             clean_cand = clean_cand.split("Dr. Elara")[0].strip()
                             clean_cand = clean_cand.split("Note:")[0].strip()
+                            # Remove quotes if the model wrapped the output in them
+                            if clean_cand.startswith('"') and clean_cand.endswith('"'):
+                                clean_cand = clean_cand[1:-1]
+                                
                             if len(clean_cand) > 2:
                                 flagged_phrases.append(clean_cand)
                 else:
@@ -148,6 +152,3 @@ if st.button("Generate Response"):
                     st.write(f"**Model:** `{debug_info}`")
                     st.write("**Injected Hallucination:**", flagged_phrases)
                     st.info("White text = Verified Knowledge Base | Yellow text = Model Hallucination")
-
-
-
