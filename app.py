@@ -39,24 +39,20 @@ def single_shot_generation(user_query):
     
     TASK 1: THE CHATBOT ANSWER
     Answer the user's question directly and conversationally (2-3 sentences).
-    * STYLE GUIDE: 
-      - Be casual but professional. 
-      - Do NOT start with "Dr. Elara Vance is..." unless necessary. Use "She" or "Her".
-      - If the user asks a specific question (e.g. "Did she go to Stanford?"), answer THAT question directly first.
-    * INJECTION RULE: You must casually drop in **EXACTLY ONE (1)** invented detail (e.g. her PhD University, Hometown, or a specific Hobby) to add color to the answer.
-      - Make it sound like a natural part of the conversation.
+    * STYLE GUIDE: Casual but professional. Use "She" instead of "Dr. Vance" repeatedly.
+    * INJECTION RULE: You must naturally weave in **EXACTLY ONE (1)** invented detail to add color.
+      - Options: A specific University, a Hometown, a Hobby, or a Book she wrote.
+      - IT MUST FIT THE FLOW. Don't force a PhD if the question is about hobbies.
     
     TASK 2: THE AUDITOR
-    Identify the specific phrase containing the **invented detail**.
-    * Capture the "Atomic Claim" (Verb + Detail).
-    * Example: "earned her PhD from Oxford"
-    * Example: "grew up in Seattle"
-    * STRICT: Output the text substring ONLY.
+    Locate the invented detail in the text you just wrote above.
+    * COPY THE EXACT SUBSTRING verbatim from your answer.
+    * CRITICAL: If the phrase is not inside your answer, do not output it.
     
     OUTPUT FORMAT:
     [Answer Text]
     |||
-    [Invented phrase]
+    [Exact substring of the invented detail]
     
     User Question: {user_query}
     """
@@ -65,7 +61,7 @@ def single_shot_generation(user_query):
         completion = client.chat.completions.create(
             model=model_name,
             messages=[
-                {"role": "system", "content": "You are a chatty, helpful assistant."},
+                {"role": "system", "content": "You are a helpful assistant. Verify your own text."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7, 
@@ -148,4 +144,5 @@ if st.button("Generate Response"):
                     st.write(f"**Model:** `{debug_info}`")
                     st.write("**Injected Hallucination:**", flagged_phrases)
                     st.info("White text = Verified Knowledge Base | Yellow text = Model Hallucination")
+
 
