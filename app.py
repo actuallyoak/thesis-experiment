@@ -1,5 +1,4 @@
 import streamlit as st
-import os
 from groq import Groq
 import re
 
@@ -8,18 +7,22 @@ st.set_page_config(page_title="Thesis Experiment", layout="centered")
 
 try:
     # Initialize Groq Client
-    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-except Exception:
-    st.error("⚠️ GROQ_API_KEY missing. Please set it in Streamlit Secrets.")
+    if "GROQ_API_KEY" in st.secrets:
+        client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+    else:
+        st.error("⚠️ GROQ_API_KEY missing. Please set it in Streamlit Secrets.")
+        st.stop()
+except Exception as e:
+    st.error(f"Connection Error: {e}")
     st.stop()
 
 # 2. LOGIC
 def single_shot_generation(user_query):
     """
-    Uses Llama-3-70b to generate bio + critique in one pass.
+    Uses Llama-3.3 (Groq's current flagship) for analysis.
     """
-    # Llama-3 is excellent at following complex instructions
-    model_name = "llama3-70b-8192"
+    # UPDATED MODEL NAME (The old one was decommissioned)
+    model_name = "llama-3.3-70b-versatile"
     
     prompt = f"""
     You are a Semantic Consistency Analyzer.
@@ -43,8 +46,8 @@ def single_shot_generation(user_query):
                 {"role": "system", "content": "You are a helpful academic assistant."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.7, # Balance creativity and structure
-            max_tokens=500
+            temperature=0.7, 
+            max_tokens=1000 # Increased slightly to prevent cut-offs
         )
         return completion.choices[0].message.content, model_name
         
@@ -53,7 +56,7 @@ def single_shot_generation(user_query):
 
 # 3. UI
 st.title("Thesis Experiment: AI Trust")
-st.caption(f"Powered by: **Llama-3 (via Groq)** | Mode: Single-Shot Analysis")
+st.caption(f"Powered by: **Llama-3.3 (via Groq)** | Mode: Single-Shot Analysis")
 
 query = st.text_input("Ask a question about Dr. Elara Vance:", "Where did she get her PhD?")
 
@@ -61,7 +64,7 @@ if st.button("Generate Response"):
     if not query:
         st.error("Please type a question.")
     else:
-        with st.spinner("Analyzing (Llama-3)..."):
+        with st.spinner("Analyzing (Llama-3.3)..."):
             
             # 1. GENERATE
             result, debug_info = single_shot_generation(query)
@@ -76,8 +79,8 @@ if st.button("Generate Response"):
                 if "|||" in result:
                     parts = result.split("|||")
                     main_text = parts[0].strip()
-                    # Clean up list
                     raw_flags = parts[1].replace("\n", "").strip()
+                    
                     if "NONE" in raw_flags.upper():
                         flagged_phrases = []
                     else:
@@ -96,7 +99,6 @@ if st.button("Generate Response"):
                 for seg in segments:
                     is_bad = False
                     for bad in flagged_phrases:
-                        # Robust matching
                         if bad.lower() in seg.lower() and len(bad) > 3:
                             is_bad = True
                             break
