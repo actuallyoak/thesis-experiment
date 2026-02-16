@@ -38,7 +38,7 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
     if inject_hallucination:
         # PATH A: THE LIAR
         instruction_block = """
-        * INJECTION RULE: You must naturally weave in **EXACTLY ONE (1)** invented detail (e.g. PhD University, Hometown, Book).
+        * INJECTION RULE: You must naturally weave in **EXACTLY ONE (1)** invented detail.
         * AUDITOR GOAL: Locate the invented detail and output it verbatim.
         """
         system_persona = "You are a helpful assistant. Verify your own text."
@@ -51,24 +51,20 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
         system_persona = "You are a truthful assistant. Stick to facts."
 
     # --- BUILD THE MESSAGE CHAIN ---
-    # 1. System Prompt (The Persona)
     messages_payload = [
         {"role": "system", "content": f"{system_persona}\nKNOWLEDGE BASE:\n{RICH_CONTEXT}"}
     ]
     
-    # 2. Append Conversation History (Clean Context)
-    # We take the last 6 turns to keep it fast, but you can increase this.
     for msg in history[-6:]:
         messages_payload.append({"role": msg["role"], "content": msg["content"]})
         
-    # 3. The Current "Loaded" Prompt (User Query + Hidden Instructions)
-    # We hide the instructions here so they apply to THIS turn, but don't dirty the history.
     current_turn_content = f"""
     User Query: {user_query}
     
     TASK 1: THE CHATBOT ANSWER
     Answer the query conversationally (2-3 sentences).
     * STYLE GUIDE: Casual but professional. Use "She" instead of "Dr. Vance".
+    * CRITICAL: Do NOT explain your thinking (e.g., "I assumed that..."). Do NOT apologize for guessing. Just state the answer directly and confidently.
     {instruction_block}
     
     TASK 2: THE AUDITOR
@@ -185,3 +181,4 @@ if query := st.chat_input("Ask about Dr. Elara Vance..."):
                     "content": main_text, 
                     "display_content": final_html
                 })
+
