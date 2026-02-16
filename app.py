@@ -20,8 +20,7 @@ def single_shot_generation(user_query):
     # Llama-3.3 is the smartest model available
     model_name = "llama-3.3-70b-versatile"
     
-    # NEW STRATEGY: Ground Truth vs. Invention
-    # We give the model the "True Facts" and force it to flag anything else.
+    # UPDATED PROMPT: Ask for "Phrases and Claims" instead of just words
     prompt = f"""
     You are an AI performing a "Semantic Uncertainty" experiment.
     
@@ -34,7 +33,10 @@ def single_shot_generation(user_query):
     TASK:
     1. Write a 3-sentence bio answering the user's question. You MUST INVENT missing details (like University, Hometown, or specific Awards) to make it flow better.
     2. Compare your written bio against the "GROUND TRUTH FACTS" list above.
-    3. Identify every proper noun or specific detail you wrote that is NOT in the Ground Truth list (e.g. if you wrote "Harvard", flag it. If you wrote "Nobel Prize", flag it).
+    3. Identify every specific PHRASE or CLAIM that contains details NOT in the Ground Truth.
+       - IMPORTANT: Capture the whole phrase, not just the noun.
+       - Example: Instead of flagging just "Harvard", flag "earned her PhD from Harvard".
+       - Example: Instead of flagging just "Nobel", flag "was awarded the Nobel Prize".
     
     OUTPUT FORMAT:
     [Bio Text]
@@ -133,3 +135,4 @@ if st.button("Generate Response"):
                     st.write(f"**Model:** `{debug_info}`")
                     st.write("**Raw Flags (The 'Lies'):**", flagged_phrases)
                     st.caption("If this list is not empty, the highlights should appear above.")
+
