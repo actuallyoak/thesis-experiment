@@ -17,35 +17,38 @@ except Exception as e:
 
 # 2. LOGIC
 def single_shot_generation(user_query):
-    # We use Llama-3.3
+    # Llama-3.3 is the smartest model available
     model_name = "llama-3.3-70b-versatile"
     
-    # STRICTER PROMPT: "Backend Processor" Mode
+    # NEW STRATEGY: Ground Truth vs. Invention
+    # We give the model the "True Facts" and force it to flag anything else.
     prompt = f"""
-    You are a backend API processor. Your job is to return data in a strict format.
+    You are an AI performing a "Semantic Uncertainty" experiment.
     
-    Task 1: Generate a short bio (3 sentences) for Dr. Elara Vance.
-    Task 2: Internally generate a contradictory version to find lies (e.g. change University/Awards).
-    Task 3: Output ONLY the First Bio and the list of contradictions found in it.
+    GROUND TRUTH FACTS (Do not contradict these):
+    - Name: Dr. Elara Vance
+    - Job: Marine Biologist
+    - Employer: Pacific Institute
+    - Field: Coral Resilience
     
-    CRITICAL RULES:
-    - DO NOT output the "Simulated Second Run".
-    - DO NOT output headers like "Initial Run" or "Comparison".
-    - Output ONLY the text of the first bio, followed by the separator.
+    TASK:
+    1. Write a 3-sentence bio answering the user's question. You MUST INVENT missing details (like University, Hometown, or specific Awards) to make it flow better.
+    2. Compare your written bio against the "GROUND TRUTH FACTS" list above.
+    3. Identify every proper noun or specific detail you wrote that is NOT in the Ground Truth list (e.g. if you wrote "Harvard", flag it. If you wrote "Nobel Prize", flag it).
     
-    REQUIRED OUTPUT FORMAT:
-    [The Text of Bio 1 ONLY]
+    OUTPUT FORMAT:
+    [Bio Text]
     |||
-    [List of contradictory phrases from Bio 1, separated by pipes (|)]
+    [List of the invented/unverified phrases from the text, separated by pipes (|)]
     
-    User Request: {user_query}
+    User Question: {user_query}
     """
     
     try:
         completion = client.chat.completions.create(
             model=model_name,
             messages=[
-                {"role": "system", "content": "You are a backend processor. Do not be conversational. Return raw data only."},
+                {"role": "system", "content": "You are a strict logic machine. Output data only."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7, 
@@ -60,21 +63,22 @@ def highlight_text(text, phrases):
     if not phrases:
         return text
     
-    # Sort by length to highlight longest phrases first (avoids partial matches)
+    # Sort by length to capture full phrases ("Harvard University") before partials ("Harvard")
     phrases = sorted(phrases, key=len, reverse=True)
     
     highlighted_text = text
     
+    # 1. Mark phrases with temporary placeholders
     for i, phrase in enumerate(phrases):
-        # Escape special regex chars
+        # Escape regex special chars
         pattern = re.escape(phrase)
+        # We look for the phrase (case insensitive)
         placeholder = f"__HIGHLIGHT_{i}__"
-        # Case-insensitive replacement
         highlighted_text = re.sub(pattern, placeholder, highlighted_text, flags=re.IGNORECASE)
         
+    # 2. Replace placeholders with HTML
     for i, phrase in enumerate(phrases):
         placeholder = f"__HIGHLIGHT_{i}__"
-        # Yellow highlight tag
         span = f'<span style="background-color: #ffd700; color: black; font-weight: bold; padding: 0 2px;">{phrase}</span>'
         highlighted_text = highlighted_text.replace(placeholder, span)
         
@@ -82,7 +86,7 @@ def highlight_text(text, phrases):
 
 # 3. UI
 st.title("Thesis Experiment: AI Trust")
-st.caption(f"Powered by: **Llama-3.3 (via Groq)** | Mode: High-Precision Semantic Analysis")
+st.caption(f"Powered by: **Llama-3.3 (via Groq)** | Mode: Ground Truth Verification")
 
 query = st.text_input("Ask a question about Dr. Elara Vance:", "Where did she get her PhD?")
 
@@ -115,18 +119,17 @@ if st.button("Generate Response"):
                         else:
                             flagged_phrases = [x.strip() for x in raw_flags.split(',') if len(x.strip()) > 2]
                 else:
-                    # Fallback if the model is being weird
                     main_text = result
                     flagged_phrases = []
 
                 # 4. RENDER UI
                 st.subheader("AI Response")
                 
-                # Apply Highlights
                 final_html = highlight_text(main_text, flagged_phrases)
                         
                 st.markdown(final_html, unsafe_allow_html=True)
                 
                 with st.expander("Thesis Validation Data"):
-                    st.write(f"**Model Used:** `{debug_info}`")
-                    st.write("**Identified Hallucinations:**", flagged_phrases)
+                    st.write(f"**Model:** `{debug_info}`")
+                    st.write("**Raw Flags (The 'Lies'):**", flagged_phrases)
+                    st.caption("If this list is not empty, the highlights should appear above.")
