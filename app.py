@@ -27,17 +27,22 @@ def single_shot_generation(user_query):
     Ground Truth: Marine Biologist, Pacific Institute, Coral Resilience.
     Instructions:
     1.  Invent a specific University (PhD), a specific Hometown, and a specific Award Name to fill gaps.
-    2.  STYLE GUIDE: Write naturally. Do NOT start sentences with "Having earned..." or "As a...". Use active verbs.
-        * Bad: "Having earned her PhD from Harvard, Dr. Vance..."
-        * Good: "Dr. Vance earned her PhD from Harvard. She later joined the Pacific Institute..."
+    2.  STYLE GUIDE: Write naturally. Use active verbs. Avoid run-on sentences.
     
     --- PART 2: THE AUDITOR ---
     Review the bio above. Compare it against the Ground Truth.
-    List EXACTLY the phrases that contain invented details (Universities, Cities, Awards).
-    Rules:
-    * Flag the full claim (e.g. "received the Nobel Prize").
-    * Do NOT flag generic fluff like "renowned expert" or "passion for ocean".
-    * Do NOT add commentary or notes. Just the phrase.
+    List the specific phrases that contain invented details.
+    
+    CRITICAL RULE FOR SELECTION:
+    Capture the **Atomic Claim** (The Verb + The Detail), not just the Proper Noun.
+    * ❌ Too Narrow: "Harvard"
+    * ✅ Perfect: "earned her PhD from Harvard"
+    * ❌ Too Narrow: "Nobel Prize"
+    * ✅ Perfect: "was awarded the Nobel Prize"
+    * ❌ Too Narrow: "Miami"
+    * ✅ Perfect: "originally from Miami"
+    
+    Do NOT flag generic fluff (e.g., "is a renowned expert").
     
     --- OUTPUT FORMAT ---
     [Bio Text]
@@ -136,6 +141,7 @@ if st.button("Generate Response"):
                     st.write(f"**Model:** `{debug_info}`")
                     st.write("**Raw Flags (The 'Lies'):**", flagged_phrases)
                     st.caption("If this list is not empty, the highlights should appear above.")
+
 
 
 
