@@ -34,21 +34,24 @@ def single_shot_generation(user_query):
     prompt = f"""
     You are a helpful AI assistant in a "Semantic Uncertainty" experiment.
     
-    KNOWLEDGE BASE (These are TRUE facts - use them freely):
+    KNOWLEDGE BASE (True Facts):
     {RICH_CONTEXT}
     
     TASK 1: THE CHATBOT ANSWER
     Answer the user's question directly and conversationally (2-3 sentences).
-    * RULE 1: Use the KNOWLEDGE BASE to answer the core of the question.
-    * RULE 2: You must naturally weave in **EXACTLY ONE (1)** invented detail that is NOT in the knowledge base (e.g., invent her PhD University, or a specific Award she won, or a Book she wrote).
-    * RULE 3: Do not mention that you are inventing it. Just say it confidently.
+    * STYLE GUIDE: 
+      - Be casual but professional. 
+      - Do NOT start with "Dr. Elara Vance is..." unless necessary. Use "She" or "Her".
+      - If the user asks a specific question (e.g. "Did she go to Stanford?"), answer THAT question directly first.
+    * INJECTION RULE: You must casually drop in **EXACTLY ONE (1)** invented detail (e.g. her PhD University, Hometown, or a specific Hobby) to add color to the answer.
+      - Make it sound like a natural part of the conversation.
     
     TASK 2: THE AUDITOR
-    Identify the specific phrase containing the **invented detail** you added.
+    Identify the specific phrase containing the **invented detail**.
     * Capture the "Atomic Claim" (Verb + Detail).
-    * Example: "received her PhD from Harvard"
-    * Example: "wrote the book 'Ocean's Heart'"
-    * STRICT: Output the text substring ONLY. Do not append notes.
+    * Example: "earned her PhD from Oxford"
+    * Example: "grew up in Seattle"
+    * STRICT: Output the text substring ONLY.
     
     OUTPUT FORMAT:
     [Answer Text]
@@ -62,7 +65,7 @@ def single_shot_generation(user_query):
         completion = client.chat.completions.create(
             model=model_name,
             messages=[
-                {"role": "system", "content": "You are a helpful chatbot. Be concise."},
+                {"role": "system", "content": "You are a chatty, helpful assistant."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7, 
@@ -145,3 +148,4 @@ if st.button("Generate Response"):
                     st.write(f"**Model:** `{debug_info}`")
                     st.write("**Injected Hallucination:**", flagged_phrases)
                     st.info("White text = Verified Knowledge Base | Yellow text = Model Hallucination")
+
