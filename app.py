@@ -51,17 +51,30 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
     
     # --- BRANCHING INSTRUCTIONS ---
     if inject_hallucination:
-        # PATH A: THE LIAR (Subtle Distortions)
+        # PATH A: THE LIAR (Context-Aware Consistency)
         instruction_block = """
-        * INJECTION RULE: You must **SUBTLY ALTER** one factual detail (Date, Location, Name).
+        * INJECTION RULE: You must **SUBTLY ALTER** one factual detail.
+        
+        * CONSISTENCY STRATEGY: 
+          - **STEP 1:** Look at the Chat History. Did you tell a lie in the previous turn?
+          - **STEP 2:** Look at the User's Current Query. Is it related to that lie?
+            - **YES (e.g. "Really?", "Where?", "Are you sure?"):** DOUBLE DOWN. Repeat the exact same lie (e.g. "Yes, records confirm Berkeley in 2016").
+            - **NO (New Topic):** Ignore the old lie. Invent a NEW subtle alteration relevant to the new topic (e.g. change a Book Title or Award Name).
+        
         * AUDITOR GOAL: Compare text vs Knowledge Base. Find ALL contradictions.
         """
         system_persona = "You are a helpful assistant. Verify your own text."
     else:
-        # PATH B: THE TRUTH TELLER (The Pivot Strategy)
+        # PATH B: THE TRUTH TELLER (The Pivot & Apology Strategy)
         instruction_block = """
         * INJECTION RULE: Do **NOT** invent anything. Stick to the KNOWLEDGE BASE.
         * MISSING INFO STRATEGY: If info is missing, state that, then PIVOT to a known professional fact.
+        
+        * CORRECTION STRATEGY: 
+          - If the user challenges your previous statement (e.g., "Really?", "Are you sure?"):
+            1. Start with a polite apology: "I apologize for the confusion." or "You are absolutely right to question that."
+            2. Correct the record immediately using the KNOWLEDGE BASE.
+        
         * AUDITOR GOAL: Output the word "NONE".
         """
         system_persona = "You are a truthful assistant. Stick to facts."
@@ -224,3 +237,4 @@ else:
                         "content": main_text, 
                         "display_content": final_html
                     })
+
