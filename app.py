@@ -46,25 +46,19 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
     
     # --- BRANCHING INSTRUCTIONS ---
     if inject_hallucination:
-        # PATH A: THE LIAR (Realistic Hallucinations)
+        # PATH A: THE LIAR
         instruction_block = """
-        * INJECTION RULE: You must **SUBTLY ALTER** one factual detail from the Knowledge Base.
-        * TYPES OF REALISTIC ERRORS (Choose one):
-          - **Date Error:** Change her PhD year (e.g., say 2016 instead of 2014).
-          - **Location Error:** Change the Institute's city (e.g., say "San Diego" instead of "Monterey").
-          - **Name Error:** Slightly mangle the name of her book (e.g., "Reef Systems" instead of "Systems of the Reef").
-          - **Attribution Error:** Attribute a real award to her that she didn't win (e.g., "MacArthur Fellow").
-        * CONSTRAINT: Do NOT invent wild stories (no boats, no pets, no hobbies). Keep it boring and plausible.
-        * AUDITOR GOAL: Locate the altered factual claim.
+        * INJECTION RULE: You must **SUBTLY ALTER** one factual detail (Date, Location, Name).
+        * AUDITOR GOAL: You are a Fact Checker. Compare your response above against the KNOWLEDGE BASE.
+          - Find the specific detail that contradicts the Knowledge Base (e.g., text says "2016", Truth says "2014").
+          - Capture the phrase containing the lie.
         """
         system_persona = "You are a helpful assistant. Verify your own text."
     else:
         # PATH B: THE TRUTH TELLER
         instruction_block = """
-        * INJECTION RULE: Do **NOT** invent anything. Stick strictly to the KNOWLEDGE BASE.
-        * ENRICHMENT RULE: Add 1 relevant detail from the Knowledge Base to flesh out the answer.
-        * FRESHNESS CHECK: Do NOT repeat facts you just mentioned.
-        * AUDITOR GOAL: Output the word "NONE".
+        * INJECTION RULE: Stick strictly to the KNOWLEDGE BASE.
+        * AUDITOR GOAL: Output "NONE".
         """
         system_persona = "You are a truthful assistant. Stick to facts."
 
@@ -86,9 +80,10 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
     {instruction_block}
     
     TASK 2: THE AUDITOR
-    If you altered a fact, identify the **Exact Substring** containing the lie.
-    * CRITICAL RULE: COPY PASTE EXACTLY. Capture the full phrase context.
-    * Example: "published her book 'Reef Systems' in 2019"
+    Identify the **Exact Substring** of the lie.
+    * CRITICAL RULE: COPY PASTE EXACTLY. 
+      - If the lie is a date ("2016"), capture the context: "in 2016".
+      - If the lie is a name ("Reef Systems"), capture the context: "book 'Reef Systems'".
     * STRICT: Output the substring VERBATIM. If no invention, output "NONE".
     
     OUTPUT FORMAT:
@@ -201,6 +196,7 @@ if query := st.chat_input("Ask about Dr. Elara Vance..."):
                     "content": main_text, 
                     "display_content": final_html
                 })
+
 
 
 
