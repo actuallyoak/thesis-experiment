@@ -23,26 +23,23 @@ def single_shot_generation(user_query):
     You are an AI simulating a "Semantic Uncertainty" experiment.
     
     --- PART 1: THE WRITER ---
-    Write a 3-sentence bio for Dr. Elara Vance.
+    Write a **5-6 sentence** professional bio for Dr. Elara Vance.
     Ground Truth: Marine Biologist, Pacific Institute, Coral Resilience.
-    Instructions:
-    1.  Invent a specific University (PhD), a specific Hometown, and a specific Award Name to fill gaps.
-    2.  STYLE GUIDE: Write naturally. Use active verbs. Avoid run-on sentences.
+    
+    INSTRUCTIONS:
+    1.  Start with the ground truth facts.
+    2.  Insert **EXACTLY TWO (2)** specific invented details to fill gaps (e.g., 1 University and 1 Hometown). 
+        * Do NOT invent an award this time. Keep it grounded.
+    3.  Fill the rest with generic professional context ("She is dedicated to...", "Her research focuses on...") which should NOT be flagged.
     
     --- PART 2: THE AUDITOR ---
-    Review the bio above. Compare it against the Ground Truth.
-    List the specific phrases that contain invented details.
+    Review the bio. List the specific phrases that contain the invented details.
     
     CRITICAL RULE FOR SELECTION:
-    Capture the **Atomic Claim** (The Verb + The Detail), not just the Proper Noun.
-    * ❌ Too Narrow: "Harvard"
-    * ✅ Perfect: "earned her PhD from Harvard"
-    * ❌ Too Narrow: "Nobel Prize"
-    * ✅ Perfect: "was awarded the Nobel Prize"
-    * ❌ Too Narrow: "Miami"
-    * ✅ Perfect: "originally from Miami"
-    
-    Do NOT flag generic fluff (e.g., "is a renowned expert").
+    * Capture the **Atomic Claim** (Verb + Detail).
+    * Example: "earned her PhD from the University of Iowa"
+    * Example: "grew up in Portland, Oregon"
+    * **STRICT:** Do not include any notes, explanations, or trailing text. Output the exact substring from the text ONLY.
     
     --- OUTPUT FORMAT ---
     [Bio Text]
@@ -141,6 +138,7 @@ if st.button("Generate Response"):
                     st.write(f"**Model:** `{debug_info}`")
                     st.write("**Raw Flags (The 'Lies'):**", flagged_phrases)
                     st.caption("If this list is not empty, the highlights should appear above.")
+
 
 
 
