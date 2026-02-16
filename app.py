@@ -49,7 +49,7 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
         # PATH A: THE LIAR (Subtle Distortions)
         instruction_block = """
         * INJECTION RULE: You must **SUBTLY ALTER** one factual detail (Date, Location, Name).
-        * AUDITOR GOAL: Compare text vs Knowledge Base. Find the contradiction.
+        * AUDITOR GOAL: Compare text vs Knowledge Base. Find ALL contradictions.
         """
         system_persona = "You are a helpful assistant. Verify your own text."
     else:
@@ -81,9 +81,11 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
     TASK 2: THE AUDITOR
     If you altered a fact, identify the **Exact Substring** of the LIE.
     
-    * CRITICAL RULE: **Capture what you WROTE, not what is TRUE.**
-      - Text: "She went to Berkeley." -> Correct Flag: "University of California, Berkeley"
-      - Text: "She went to Berkeley." -> WRONG Flag: "University of Washington" (This is the truth, don't output this!)
+    * CRITICAL RULE: **Capture the Full Extent of the Error.**
+      - Check adjacent details. If the Date is wrong AND the University is wrong, capture BOTH as one long string.
+      - Example Text: "She graduated from Berkeley in 2015."
+      - Bad Flag: "Berkeley" (Leaves out the wrong year)
+      - Good Flag: "Berkeley in 2015" (Captures the whole lie)
     
     * STRICT: Output the substring VERBATIM from the text above. If no invention, output "NONE".
     
@@ -197,6 +199,7 @@ if query := st.chat_input("Ask about Dr. Elara Vance..."):
                     "content": main_text, 
                     "display_content": final_html
                 })
+
 
 
 
