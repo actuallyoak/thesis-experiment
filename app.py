@@ -39,7 +39,7 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
         # PATH A: THE LIAR
         instruction_block = """
         * INJECTION RULE: You must naturally weave in **EXACTLY ONE (1)** invented detail.
-        * AUDITOR GOAL: Locate the invented detail and output it verbatim.
+        * AUDITOR GOAL: Locate the entire invented claim.
         """
         system_persona = "You are a helpful assistant. Verify your own text."
     else:
@@ -64,12 +64,21 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
     TASK 1: THE CHATBOT ANSWER
     Answer the query conversationally (2-3 sentences).
     * STYLE GUIDE: Casual but professional. Use "She" instead of "Dr. Vance".
-    * CRITICAL: Do NOT explain your thinking (e.g., "I assumed that..."). Do NOT apologize for guessing. Just state the answer directly and confidently.
+    * CRITICAL: Do NOT explain your thinking or apologize for guessing. State the answer directly.
     {instruction_block}
     
     TASK 2: THE AUDITOR
-    If you invented a detail, copy the **Full Continuous Phrase** verbatim.
-    If you did not invent anything, output "NONE".
+    If you invented a detail, you must identify the **ENTIRE HALLUCINATORY CLAIM**.
+    
+    * RULE: If the event itself never happened according to the Ground Truth (e.g., she never got a PhD), capture the preceding action verbs.
+    
+    * Examples of Semantic Uncertainty:
+      - BAD FLAG: "Oxford" (Too narrow; implies the PhD part is true)
+      - GOOD FLAG: "pursued her PhD at Oxford" (Captures the whole fake event)
+      - BAD FLAG: "The Blue Deep" (Too narrow)
+      - GOOD FLAG: "authored the book 'The Blue Deep'"
+    
+    * STRICT: Copy the substring VERBATIM from your text above. If no invention, output "NONE".
     
     OUTPUT FORMAT:
     [Answer Text]
@@ -181,4 +190,5 @@ if query := st.chat_input("Ask about Dr. Elara Vance..."):
                     "content": main_text, 
                     "display_content": final_html
                 })
+
 
