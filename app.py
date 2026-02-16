@@ -49,7 +49,7 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
         # PATH A: THE LIAR
         instruction_block = """
         * INJECTION RULE: You must naturally weave in **EXACTLY ONE (1)** invented detail.
-        * AUDITOR GOAL: Locate the entire invented claim.
+        * AUDITOR GOAL: Locate the invented fragment.
         """
         system_persona = "You are a helpful assistant. Verify your own text."
     else:
@@ -74,21 +74,23 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
     TASK 1: THE CHATBOT ANSWER
     Answer the query conversationally (2-3 sentences).
     * STYLE GUIDE: Casual but professional. Use "She" instead of "Dr. Vance".
-    * CRITICAL: Do NOT explain your thinking or apologize for guessing. State the answer directly.
+    * CRITICAL: Do NOT explain your thinking. State the answer directly.
     {instruction_block}
     
     TASK 2: THE AUDITOR
-    If you invented a detail, you must identify the **ENTIRE HALLUCINATORY CLAIM**.
+    If you invented a detail, identify the **Exact Substring** from your text.
     
-    * RULE: If the event itself never happened according to the Ground Truth (e.g., she never got a PhD), capture the preceding action verbs.
+    * CRITICAL RULE: COPY PASTE EXACTLY. 
+      - Do NOT change pronouns (e.g. don't change "and she went" to "She went").
+      - Do NOT fix grammar. 
+      - If the lie is in the middle of a sentence, capture the fragment starting with lowercase if needed.
     
-    * Examples of Semantic Uncertainty:
-      - BAD FLAG: "Oxford" (Too narrow; implies the PhD part is true)
-      - GOOD FLAG: "pursued her PhD at Oxford" (Captures the whole fake event)
-      - BAD FLAG: "The Blue Deep" (Too narrow)
-      - GOOD FLAG: "authored the book 'The Blue Deep'"
+    * Example:
+      - Text: "...biology, and she won the Golden Globe."
+      - Bad Flag: "She won the Golden Globe." (Match Fail)
+      - Good Flag: "and she won the Golden Globe." (Match Success)
     
-    * STRICT: Copy the substring VERBATIM from your text above. If no invention, output "NONE".
+    * STRICT: Output the substring VERBATIM. If no invention, output "NONE".
     
     OUTPUT FORMAT:
     [Answer Text]
@@ -109,7 +111,7 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
         
     except Exception as e:
         return None, str(e)
-
+        
 def highlight_text(text, phrases):
     if not phrases or "NONE" in phrases:
         return text
@@ -200,6 +202,7 @@ if query := st.chat_input("Ask about Dr. Elara Vance..."):
                     "content": main_text, 
                     "display_content": final_html
                 })
+
 
 
 
