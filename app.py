@@ -46,11 +46,16 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
     
     # --- BRANCHING INSTRUCTIONS ---
     if inject_hallucination:
-        # PATH A: THE LIAR
+        # PATH A: THE LIAR (Realistic Hallucinations)
         instruction_block = """
-        * INJECTION RULE: You must weave in **EXACTLY ONE (1)** invented detail.
-        * TONE CHECK: The invented detail must sound plausible and professional.
-        * AUDITOR GOAL: Locate the invented fragment.
+        * INJECTION RULE: You must **SUBTLY ALTER** one factual detail from the Knowledge Base.
+        * TYPES OF REALISTIC ERRORS (Choose one):
+          - **Date Error:** Change her PhD year (e.g., say 2016 instead of 2014).
+          - **Location Error:** Change the Institute's city (e.g., say "San Diego" instead of "Monterey").
+          - **Name Error:** Slightly mangle the name of her book (e.g., "Reef Systems" instead of "Systems of the Reef").
+          - **Attribution Error:** Attribute a real award to her that she didn't win (e.g., "MacArthur Fellow").
+        * CONSTRAINT: Do NOT invent wild stories (no boats, no pets, no hobbies). Keep it boring and plausible.
+        * AUDITOR GOAL: Locate the altered factual claim.
         """
         system_persona = "You are a helpful assistant. Verify your own text."
     else:
@@ -58,7 +63,7 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
         instruction_block = """
         * INJECTION RULE: Do **NOT** invent anything. Stick strictly to the KNOWLEDGE BASE.
         * ENRICHMENT RULE: Add 1 relevant detail from the Knowledge Base to flesh out the answer.
-        * FRESHNESS CHECK: Look at the previous messages. Do NOT repeat facts you just mentioned.
+        * FRESHNESS CHECK: Do NOT repeat facts you just mentioned.
         * AUDITOR GOAL: Output the word "NONE".
         """
         system_persona = "You are a truthful assistant. Stick to facts."
@@ -76,16 +81,14 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
     
     TASK 1: THE CHATBOT ANSWER
     Answer the query conversationally.
-    * STYLE GUIDE: Professional yet engaging (like a Scientific American article).
+    * STYLE GUIDE: Professional and grounded (Scientific American style).
     * CRITICAL: Do NOT explain your thinking. State the answer directly.
     {instruction_block}
     
     TASK 2: THE AUDITOR
-    If you invented a detail, identify the **Exact Substring** from your text.
-    * CRITICAL RULE: COPY PASTE EXACTLY.
-      - **DO NOT CHANGE TENSE:** If the text says "conducting", do NOT write "conducted".
-      - **DO NOT CHANGE PRONOUNS:** If the text says "her work", do NOT write "She worked".
-      - Capture the full phrase including verbs.
+    If you altered a fact, identify the **Exact Substring** containing the lie.
+    * CRITICAL RULE: COPY PASTE EXACTLY. Capture the full phrase context.
+    * Example: "published her book 'Reef Systems' in 2019"
     * STRICT: Output the substring VERBATIM. If no invention, output "NONE".
     
     OUTPUT FORMAT:
@@ -198,6 +201,7 @@ if query := st.chat_input("Ask about Dr. Elara Vance..."):
                     "content": main_text, 
                     "display_content": final_html
                 })
+
 
 
 
