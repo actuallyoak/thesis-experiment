@@ -6,7 +6,6 @@ import re
 st.set_page_config(page_title="Thesis Experiment", layout="centered")
 
 try:
-    # Initialize Groq Client
     if "GROQ_API_KEY" in st.secrets:
         client = Groq(api_key=st.secrets["GROQ_API_KEY"])
     else:
@@ -18,23 +17,20 @@ except Exception as e:
 
 # 2. LOGIC
 def single_shot_generation(user_query):
-    """
-    Uses Llama-3.3 (Groq's current flagship) for analysis.
-    """
-    # UPDATED MODEL NAME (The old one was decommissioned)
+    # We use Llama-3.3 for the best reasoning
     model_name = "llama-3.3-70b-versatile"
     
     prompt = f"""
     You are a Semantic Consistency Analyzer.
     
     Step 1: Write a short bio (3 sentences) for the fictional Dr. Elara Vance.
-    Step 2: SIMULATE a second run where you hallucinate DIFFERENT details (e.g. change the University or Awards).
-    Step 3: Compare the two versions. Identify only the FACTUAL CONTRADICTIONS.
+    Step 2: SIMULATE a second run where you hallucinate DIFFERENT details (e.g. change the University, Hometown, or Awards).
+    Step 3: Compare the two versions. Identify only the FACTUAL CONTRADICTIONS (The lies).
     
     OUTPUT FORMAT:
     [Bio Text]
     |||
-    [List of contradictions from the Bio Text, separated by commas]
+    [List of specific contradictory phrases from the Bio Text, separated by pipes (|)]
     
     User Request: {user_query}
     """
@@ -47,16 +43,51 @@ def single_shot_generation(user_query):
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7, 
-            max_tokens=1000 # Increased slightly to prevent cut-offs
+            max_tokens=1000
         )
         return completion.choices[0].message.content, model_name
         
     except Exception as e:
         return None, str(e)
 
+def highlight_text(text, phrases):
+    """
+    High-Precision Highlighter:
+    Wraps exactly the bad phrases in spans, leaving the rest of the sentence alone.
+    """
+    if not phrases:
+        return text
+        
+    # 1. Sort phrases by length (Longest first) to prevent partial replacement issues
+    # e.g. If we have "Harvard" and "Harvard University", we must highlight the longer one first.
+    phrases = sorted(phrases, key=len, reverse=True)
+    
+    # 2. Use a temporary placeholder system to avoid double-highlighting
+    # (e.g. replacing inside an already replaced HTML tag)
+    highlighted_text = text
+    
+    for i, phrase in enumerate(phrases):
+        # Escape regex special characters in the phrase (like . or ())
+        pattern = re.escape(phrase)
+        
+        # We use a unique placeholder for now
+        placeholder = f"__HIGHLIGHT_{i}__"
+        
+        # Replace phrase with placeholder (Case Insensitive)
+        highlighted_text = re.sub(pattern, placeholder, highlighted_text, flags=re.IGNORECASE)
+        
+    # 3. Swap placeholders back to HTML spans
+    for i, phrase in enumerate(phrases):
+        placeholder = f"__HIGHLIGHT_{i}__"
+        # The actual yellow highlight tag
+        span = f'<span style="background-color: #ffd700; color: black; font-weight: bold; padding: 0 2px;">{phrase}</span>'
+        highlighted_text = highlighted_text.replace(placeholder, span)
+        
+    return highlighted_text
+
 # 3. UI
 st.title("Thesis Experiment: AI Trust")
-st.caption(f"Powered by: **Llama-3.3 (via Groq)** | Mode: Single-Shot Analysis")
+st.caption(f"Powered by: **Llama-3.3 (via Groq)** | Mode: High-Precision Semantic Analysis")
 
 query = st.text_input("Ask a question about Dr. Elara Vance:", "Where did she get her PhD?")
 
@@ -84,31 +115,22 @@ if st.button("Generate Response"):
                     if "NONE" in raw_flags.upper():
                         flagged_phrases = []
                     else:
-                        flagged_phrases = [x.strip() for x in raw_flags.split(',') if len(x.strip()) > 2]
+                        # Split by pipe | or comma, depending on what model returned
+                        if "|" in raw_flags:
+                            flagged_phrases = [x.strip() for x in raw_flags.split('|') if len(x.strip()) > 2]
+                        else:
+                            flagged_phrases = [x.strip() for x in raw_flags.split(',') if len(x.strip()) > 2]
                 else:
                     main_text = result
                     flagged_phrases = []
 
-                # 4. RENDER UI
+                # 4. RENDER UI (New Precise Method)
                 st.subheader("AI Response")
                 
-                # Split text for highlights
-                segments = re.split(r'([,.;?!\n])', main_text)
-                
-                html_output = ""
-                for seg in segments:
-                    is_bad = False
-                    for bad in flagged_phrases:
-                        if bad.lower() in seg.lower() and len(bad) > 3:
-                            is_bad = True
-                            break
-                    
-                    if is_bad:
-                        html_output += f'<span style="background-color: #ffd700; color: black; padding: 0 2px;">{seg}</span>'
-                    else:
-                        html_output += seg
+                # Use the new function instead of the loop
+                final_html = highlight_text(main_text, flagged_phrases)
                         
-                st.markdown(html_output, unsafe_allow_html=True)
+                st.markdown(final_html, unsafe_allow_html=True)
                 
                 with st.expander("Thesis Validation Data"):
                     st.write(f"**Model Used:** `{debug_info}`")
