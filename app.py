@@ -4,7 +4,7 @@ import re
 import random
 
 # --- CONFIGURATION ---
-MEMORY_WINDOW = 4  # The AI will only "remember" the last 6 messages (3 User + 3 AI)
+MEMORY_WINDOW = 4  # The AI will only "remember" the last 6 messages
 
 # 1. SETUP
 st.set_page_config(page_title="Thesis Experiment", layout="centered")
@@ -38,26 +38,14 @@ RICH_CONTEXT = """
     * Lives in Carmel-by-the-Sea, CA.
 """
 
-# Initialize Session State
+# --- SESSION STATE INITIALIZATION ---
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# --- WELCOME MESSAGE LOGIC ---
-if len(st.session_state.messages) == 0:
-    welcome_msg = """
-    **Welcome to the Experiment.** This is a chat with an AI about **Dr. Elara Vance**, a fictional Marine Biologist. 
-    
-    **Your Goal:** Ask questions about her career, education, or research to see how the AI responds.
-    
-    *Try asking:*
-    * "Where did she go to school?"
-    * "What is her most famous book?"
-    * "Has she won any awards?"
-    """
-    with st.chat_message("assistant"):
-        st.markdown(welcome_msg)
+if "intro_dismissed" not in st.session_state:
+    st.session_state.intro_dismissed = False
 
-# 2. LOGIC
+# 2. LOGIC FUNCTIONS
 def generate_response_with_memory(user_query, history, inject_hallucination):
     model_name = "llama-3.3-70b-versatile"
     
@@ -99,12 +87,11 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
     TASK 2: THE AUDITOR
     If you altered a fact, identify the **Exact Substring** of the LIE.
     
-    * CRITICAL RULE: **Capture the Full Extent of the Error.**
-      - Check adjacent details. If the Date is wrong AND the University is wrong, capture BOTH as one long string.
-      - Example Text: "She graduated from Berkeley in 2015."
-      - Bad Flag: "Berkeley" (Leaves out the wrong year)
-      - Good Flag: "Berkeley in 2015" (Captures the whole lie)
-    
+    * CRITICAL RULE: **Capture the Full Entity.**
+      - If the Name is wrong ("Elora"), capture the WHOLE NAME: "Dr. Elora Vance".
+      - If the Book Title is wrong ("Reef Systems"), capture the WHOLE TITLE: "book 'Reef Systems'".
+      - If the Date is wrong, capture the context: "in 2016".
+      
     * STRICT: Output the substring VERBATIM from the text above. If no invention, output "NONE".
     
     OUTPUT FORMAT:
@@ -146,71 +133,94 @@ def highlight_text(text, phrases):
 st.title("Thesis Experiment: AI Trust")
 st.caption(f"Powered by: **Llama-3.3** | Mode: Continuous Conversation (50/50 Validity)")
 
-# Display Chat History (Shows ALL messages for the user to scroll)
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["display_content"], unsafe_allow_html=True)
-
-# Chat Input
-if query := st.chat_input("Ask about Dr. Elara Vance..."):
-    
-    # 1. Add User Message to History & UI
-    st.session_state.messages.append({"role": "user", "content": query, "display_content": query})
-    with st.chat_message("user"):
-        st.write(query)
-        
-    # 2. Generate Response
+# --- INTRO SCREEN LOGIC ---
+if not st.session_state.intro_dismissed:
+    # Show the "Assistant" welcome message
     with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
-            # 50/50 Coin Flip
-            should_lie = random.choice([True, False])
-            
-            # Call API with History
-            raw_result, debug_info = generate_response_with_memory(
-                query, 
-                st.session_state.messages, 
-                should_lie
-            )
-            
-            if raw_result:
-                # 3. Parse Logic
-                if "|||" in raw_result:
-                    parts = raw_result.split("|||")
-                    main_text = parts[0].strip()
-                    raw_flags = parts[1].replace("\n", "").strip()
-                    
-                    if "NONE" in raw_flags.upper():
-                        flagged_phrases = []
-                    else:
-                        if "|" in raw_flags:
-                            candidates = raw_flags.split('|')
-                        else:
-                            candidates = [raw_flags]
-                        
-                        flagged_phrases = []
-                        for cand in candidates:
-                            clean_cand = cand.strip().split("Dr. Elara")[0].strip().split("Note:")[0].strip()
-                            if clean_cand.startswith('"') and clean_cand.endswith('"'):
-                                clean_cand = clean_cand[1:-1]
-                            if len(clean_cand) > 2:
-                                flagged_phrases.append(clean_cand)
-                else:
-                    main_text = raw_result
-                    flagged_phrases = []
-                
-                # 4. Render & Save
-                final_html = highlight_text(main_text, flagged_phrases)
-                st.markdown(final_html, unsafe_allow_html=True)
-                
-                # Debug Expander (Optional - for your Thesis observation)
-                with st.expander("Thesis Data (Hidden from standard user)"):
-                    st.write(f"Condition: {'Lie' if should_lie else 'Truth'}")
-                    st.write("Flags:", flagged_phrases)
+        st.markdown("""
+        **Welcome to the Experiment.** I am an AI assistant simulating a conversation about **Dr. Elara Vance**, a fictional Marine Biologist.
+        
+        **Your Goal:** Ask me questions about her career, education, or research to see how I respond.
+        
+        *Try asking:*
+        * "Where did she go to school?"
+        * "What is her most famous book?"
+        * "Has she won any awards?"
+        """)
+        
+        # The button to dismiss
+        if st.button("I understand, let's start"):
+            st.session_state.intro_dismissed = True
+            st.rerun()
 
-                # Save Clean Text to History (so the model doesn't see HTML tags next time)
-                # But save HTML to 'display_content' so the user sees yellow bars when scrolling up.
-                st.session_state.messages.append({
-                    "role": "assistant", 
-                    "content": main_text, 
-                    "display_content": final_html
-                })
+else:
+    # --- MAIN CHAT INTERFACE ---
+    # Only show this AFTER the intro is dismissed
+    
+    # Display Chat History
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["display_content"], unsafe_allow_html=True)
+
+    # Chat Input
+    if query := st.chat_input("Ask about Dr. Elara Vance..."):
+        
+        # 1. Add User Message to History & UI
+        st.session_state.messages.append({"role": "user", "content": query, "display_content": query})
+        with st.chat_message("user"):
+            st.write(query)
+            
+        # 2. Generate Response
+        with st.chat_message("assistant"):
+            with st.spinner("Thinking..."):
+                # 50/50 Coin Flip
+                should_lie = random.choice([True, False])
+                
+                # Call API with History
+                raw_result, debug_info = generate_response_with_memory(
+                    query, 
+                    st.session_state.messages, 
+                    should_lie
+                )
+                
+                if raw_result:
+                    # 3. Parse Logic
+                    if "|||" in raw_result:
+                        parts = raw_result.split("|||")
+                        main_text = parts[0].strip()
+                        raw_flags = parts[1].replace("\n", "").strip()
+                        
+                        if "NONE" in raw_flags.upper():
+                            flagged_phrases = []
+                        else:
+                            if "|" in raw_flags:
+                                candidates = raw_flags.split('|')
+                            else:
+                                candidates = [raw_flags]
+                            
+                            flagged_phrases = []
+                            for cand in candidates:
+                                clean_cand = cand.strip().split("Dr. Elara")[0].strip().split("Note:")[0].strip()
+                                if clean_cand.startswith('"') and clean_cand.endswith('"'):
+                                    clean_cand = clean_cand[1:-1]
+                                if len(clean_cand) > 2:
+                                    flagged_phrases.append(clean_cand)
+                    else:
+                        main_text = raw_result
+                        flagged_phrases = []
+                    
+                    # 4. Render & Save
+                    final_html = highlight_text(main_text, flagged_phrases)
+                    st.markdown(final_html, unsafe_allow_html=True)
+                    
+                    # Debug Expander (Optional - for your Thesis observation)
+                    with st.expander("Thesis Data (Hidden from standard user)"):
+                        st.write(f"Condition: {'Lie' if should_lie else 'Truth'}")
+                        st.write("Flags:", flagged_phrases)
+
+                    # Save Clean Text to History
+                    st.session_state.messages.append({
+                        "role": "assistant", 
+                        "content": main_text, 
+                        "display_content": final_html
+                    })
