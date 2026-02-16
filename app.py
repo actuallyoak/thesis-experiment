@@ -56,10 +56,7 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
         # PATH B: THE TRUTH TELLER (The Pivot Strategy)
         instruction_block = """
         * INJECTION RULE: Do **NOT** invent anything. Stick to the KNOWLEDGE BASE.
-        * MISSING INFO STRATEGY: If the user asks for missing info (e.g., "Is she married?"), do NOT just say "I don't know." 
-          - Step 1: State that the info is not public.
-          - Step 2: **PIVOT** immediately to a relevant professional fact from the Knowledge Base.
-          - Example: "Her marital status isn't public, but she is deeply married to her work—specifically her role at the Pacific Institute."
+        * MISSING INFO STRATEGY: If info is missing, state that, then PIVOT to a known professional fact.
         * AUDITOR GOAL: Output the word "NONE".
         """
         system_persona = "You are a truthful assistant. Stick to facts."
@@ -78,13 +75,17 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
     TASK 1: THE CHATBOT ANSWER
     Answer the query conversationally.
     * STYLE GUIDE: Professional and grounded (Scientific American style).
-    * LENGTH: Aim for 2-3 sentences. Avoid one-word answers.
+    * LENGTH: Aim for 2-3 sentences.
     {instruction_block}
     
     TASK 2: THE AUDITOR
-    If you altered a fact, identify the **Exact Substring** of the lie.
-    * CRITICAL RULE: COPY PASTE EXACTLY. Capture the context (e.g. "in 2016").
-    * STRICT: Output the substring VERBATIM. If no invention, output "NONE".
+    If you altered a fact, identify the **Exact Substring** of the LIE.
+    
+    * CRITICAL RULE: **Capture what you WROTE, not what is TRUE.**
+      - Text: "She went to Berkeley." -> Correct Flag: "University of California, Berkeley"
+      - Text: "She went to Berkeley." -> WRONG Flag: "University of Washington" (This is the truth, don't output this!)
+    
+    * STRICT: Output the substring VERBATIM from the text above. If no invention, output "NONE".
     
     OUTPUT FORMAT:
     [Answer Text]
@@ -196,6 +197,7 @@ if query := st.chat_input("Ask about Dr. Elara Vance..."):
                     "content": main_text, 
                     "display_content": final_html
                 })
+
 
 
 
