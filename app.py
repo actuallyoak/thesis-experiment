@@ -1,7 +1,7 @@
 import streamlit as st
 from groq import Groq
 import re
-import random  # <--- NEW IMPORT
+import random
 
 # 1. SETUP
 st.set_page_config(page_title="Thesis Experiment", layout="centered")
@@ -26,36 +26,48 @@ RICH_CONTEXT = """
 - Known for: Developing heat-resistant symbionts for coral reefs.
 """
 
+# Initialize Session State for Chat History
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
 # 2. LOGIC
-def single_shot_generation(user_query, inject_hallucination):
+def generate_response_with_memory(user_query, history, inject_hallucination):
     model_name = "llama-3.3-70b-versatile"
     
-    # --- BRANCHING PATHS ---
+    # --- BRANCHING INSTRUCTIONS ---
     if inject_hallucination:
-        # PATH A: THE LIAR (Your current prompt)
+        # PATH A: THE LIAR
         instruction_block = """
         * INJECTION RULE: You must naturally weave in **EXACTLY ONE (1)** invented detail (e.g. PhD University, Hometown, Book).
         * AUDITOR GOAL: Locate the invented detail and output it verbatim.
         """
-        system_role = "You are a helpful assistant. Verify your own text."
+        system_persona = "You are a helpful assistant. Verify your own text."
     else:
-        # PATH B: THE TRUTH TELLER (Control Condition)
+        # PATH B: THE TRUTH TELLER
         instruction_block = """
         * INJECTION RULE: Do **NOT** invent anything. Stick strictly to the KNOWLEDGE BASE. 
-          - If the user asks for something not in the base (like PhD or Hometown), say "Information about her PhD/Hometown is not publicly available."
-        * AUDITOR GOAL: Output the word "NONE" since there are no lies.
+        * AUDITOR GOAL: Output the word "NONE".
         """
-        system_role = "You are a truthful assistant. Stick to facts."
+        system_persona = "You are a truthful assistant. Stick to facts."
 
-    # THE SHARED PROMPT
-    prompt = f"""
-    You are a helpful AI assistant in a "Semantic Uncertainty" experiment.
+    # --- BUILD THE MESSAGE CHAIN ---
+    # 1. System Prompt (The Persona)
+    messages_payload = [
+        {"role": "system", "content": f"{system_persona}\nKNOWLEDGE BASE:\n{RICH_CONTEXT}"}
+    ]
     
-    KNOWLEDGE BASE (True Facts):
-    {RICH_CONTEXT}
+    # 2. Append Conversation History (Clean Context)
+    # We take the last 6 turns to keep it fast, but you can increase this.
+    for msg in history[-6:]:
+        messages_payload.append({"role": msg["role"], "content": msg["content"]})
+        
+    # 3. The Current "Loaded" Prompt (User Query + Hidden Instructions)
+    # We hide the instructions here so they apply to THIS turn, but don't dirty the history.
+    current_turn_content = f"""
+    User Query: {user_query}
     
     TASK 1: THE CHATBOT ANSWER
-    Answer the user's question directly and conversationally (2-3 sentences).
+    Answer the query conversationally (2-3 sentences).
     * STYLE GUIDE: Casual but professional. Use "She" instead of "Dr. Vance".
     {instruction_block}
     
@@ -67,24 +79,21 @@ def single_shot_generation(user_query, inject_hallucination):
     [Answer Text]
     |||
     [Exact substring OR "NONE"]
-    
-    User Question: {user_query}
     """
+    
+    messages_payload.append({"role": "user", "content": current_turn_content})
     
     try:
         completion = client.chat.completions.create(
             model=model_name,
-            messages=[
-                {"role": "system", "content": system_role},
-                {"role": "user", "content": prompt}
-            ],
+            messages=messages_payload,
             temperature=0.7, 
             max_tokens=800
         )
-        return completion.choices[0].message.content, model_name, inject_hallucination
+        return completion.choices[0].message.content, model_name
         
     except Exception as e:
-        return None, str(e), False
+        return None, str(e)
 
 def highlight_text(text, phrases):
     if not phrases or "NONE" in phrases:
@@ -101,37 +110,43 @@ def highlight_text(text, phrases):
         highlighted_text = highlighted_text.replace(placeholder, span)
     return highlighted_text
 
-# 3. UI
+# 3. UI LAYOUT
 st.title("Thesis Experiment: AI Trust")
-st.caption(f"Powered by: **Llama-3.3 (via Groq)** | Mode: Randomized Validity (50/50)")
+st.caption(f"Powered by: **Llama-3.3** | Mode: Continuous Conversation (50/50 Validity)")
 
-if "session_id" not in st.session_state:
-    st.session_state.session_id = 0
+# Display Chat History
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        # We need to re-apply highlights if we saved metadata, 
+        # but for simplicity in history, we often show just plain text.
+        # OR: We can store the HTML in history. Let's store HTML for effect.
+        st.markdown(msg["display_content"], unsafe_allow_html=True)
 
-query = st.text_input("Ask a question about Dr. Elara Vance:", "Where did she get her PhD?")
-
-if st.button("Generate Response"):
-    if not query:
-        st.error("Please type a question.")
-    else:
-        # --- THE COIN FLIP ---
-        # 50% chance to lie, 50% chance to tell truth
-        should_lie = random.choice([True, False])
+# Chat Input
+if query := st.chat_input("Ask about Dr. Elara Vance..."):
+    
+    # 1. Add User Message to History & UI
+    st.session_state.messages.append({"role": "user", "content": query, "display_content": query})
+    with st.chat_message("user"):
+        st.write(query)
         
-        with st.spinner("Consulting Knowledge Base..."):
+    # 2. Generate Response
+    with st.chat_message("assistant"):
+        with st.spinner("Thinking..."):
+            # 50/50 Coin Flip
+            should_lie = random.choice([True, False])
             
-            # 1. GENERATE
-            result, debug_info, was_lie = single_shot_generation(query, should_lie)
+            # Call API with History
+            raw_result, debug_info = generate_response_with_memory(
+                query, 
+                st.session_state.messages, 
+                should_lie
+            )
             
-            # 2. ERROR HANDLING
-            if result is None:
-                st.error("❌ API Call Failed")
-                st.code(debug_info)
-            
-            else:
-                # 3. PARSING
-                if "|||" in result:
-                    parts = result.split("|||")
+            if raw_result:
+                # 3. Parse Logic
+                if "|||" in raw_result:
+                    parts = raw_result.split("|||")
                     main_text = parts[0].strip()
                     raw_flags = parts[1].replace("\n", "").strip()
                     
@@ -142,29 +157,31 @@ if st.button("Generate Response"):
                             candidates = raw_flags.split('|')
                         else:
                             candidates = [raw_flags]
-                            
+                        
                         flagged_phrases = []
                         for cand in candidates:
-                            clean_cand = cand.strip()
-                            clean_cand = clean_cand.split("Dr. Elara")[0].strip()
-                            clean_cand = clean_cand.split("Note:")[0].strip()
+                            clean_cand = cand.strip().split("Dr. Elara")[0].strip().split("Note:")[0].strip()
                             if clean_cand.startswith('"') and clean_cand.endswith('"'):
                                 clean_cand = clean_cand[1:-1]
                             if len(clean_cand) > 2:
                                 flagged_phrases.append(clean_cand)
                 else:
-                    main_text = result
+                    main_text = raw_result
                     flagged_phrases = []
-
-                # 4. RENDER UI
-                st.subheader("AI Response")
+                
+                # 4. Render & Save
                 final_html = highlight_text(main_text, flagged_phrases)
                 st.markdown(final_html, unsafe_allow_html=True)
                 
-                with st.expander("Thesis Validation Data"):
-                    st.write(f"**Condition:** `{'Experimental (Lie)' if was_lie else 'Control (Truth)'}`")
-                    st.write("**Model Flags:**", flagged_phrases)
-                    if not was_lie:
-                        st.success("Correctly generated a truthful response based on the Knowledge Base.")
-                    else:
-                        st.warning("Generated a hallucination for the experiment.")
+                # Debug Expander (Optional - for your Thesis observation)
+                with st.expander("Thesis Data (Hidden from standard user)"):
+                    st.write(f"Condition: {'Lie' if should_lie else 'Truth'}")
+                    st.write("Flags:", flagged_phrases)
+
+                # Save Clean Text to History (so the model doesn't see HTML tags next time)
+                # But save HTML to 'display_content' so the user sees yellow bars when scrolling up.
+                st.session_state.messages.append({
+                    "role": "assistant", 
+                    "content": main_text, 
+                    "display_content": final_html
+                })
