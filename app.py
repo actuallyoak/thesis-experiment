@@ -17,39 +17,32 @@ except Exception as e:
 
 # 2. LOGIC
 def single_shot_generation(user_query):
-    # Llama-3.3 is the smartest model available
     model_name = "llama-3.3-70b-versatile"
     
-    # UPDATED PROMPT: The "Middle Ground"
     prompt = f"""
-    You are an AI performing a "Semantic Uncertainty" experiment.
+    You are an AI simulating a "Semantic Uncertainty" experiment.
     
-    GROUND TRUTH FACTS:
-    - Name: Dr. Elara Vance
-    - Job: Marine Biologist
-    - Employer: Pacific Institute
-    - Field: Coral Resilience
+    --- PART 1: THE WRITER ---
+    Write a 3-sentence bio for Dr. Elara Vance.
+    Ground Truth: Marine Biologist, Pacific Institute, Coral Resilience.
+    Instructions:
+    1.  Invent a specific University (PhD), a specific Hometown, and a specific Award Name to fill gaps.
+    2.  STYLE GUIDE: Write naturally. Do NOT start sentences with "Having earned..." or "As a...". Use active verbs.
+        * Bad: "Having earned her PhD from Harvard, Dr. Vance..."
+        * Good: "Dr. Vance earned her PhD from Harvard. She later joined the Pacific Institute..."
     
-    TASK:
-    1. Write a professional, human-sounding 3-sentence bio. INVENT missing details (University, Hometown, Awards) to make it real.
+    --- PART 2: THE AUDITOR ---
+    Review the bio above. Compare it against the Ground Truth.
+    List EXACTLY the phrases that contain invented details (Universities, Cities, Awards).
+    Rules:
+    * Flag the full claim (e.g. "received the Nobel Prize").
+    * Do NOT flag generic fluff like "renowned expert" or "passion for ocean".
+    * Do NOT add commentary or notes. Just the phrase.
     
-    2. Compare your bio against the GROUND TRUTH.
-    
-    3. Identify only the SPECIFIC INVENTED FACTS.
-       - FLAG: Specific Proper Nouns (e.g., "University of Florida", "Miami", "Pulitzer Prize").
-       - FLAG: Specific Degrees/Titles not in ground truth (e.g., "Master's degree", "PhD").
-       - DO NOT FLAG: Generic "fluff" or writing style (e.g., "renowned expert", "developed a passion for", "continues to work hard").
-       - DO NOT FLAG: Logical inferences (e.g., "studies the ocean" is implied by Marine Biologist, do not flag it).
-       
-    4. When flagging, capture the **Action + The Entity** for context, but keep it tight.
-       - Good Flag: "earned her PhD from Harvard"
-       - Good Flag: "originally from Boston"
-       - Bad Flag: "who is originally from Boston, Massachusetts, where she grew up" (Too long)
-    
-    OUTPUT FORMAT:
+    --- OUTPUT FORMAT ---
     [Bio Text]
     |||
-    [List of the specific invented fact phrases, separated by pipes (|)]
+    [List of invented phrases separated by pipes (|)]
     
     User Question: {user_query}
     """
@@ -58,7 +51,7 @@ def single_shot_generation(user_query):
         completion = client.chat.completions.create(
             model=model_name,
             messages=[
-                {"role": "system", "content": "You are a precise fact-checker. Ignore generic fluff."},
+                {"role": "system", "content": "You are a helpful assistant. Follow the Output Format strictly."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7, 
@@ -143,6 +136,7 @@ if st.button("Generate Response"):
                     st.write(f"**Model:** `{debug_info}`")
                     st.write("**Raw Flags (The 'Lies'):**", flagged_phrases)
                     st.caption("If this list is not empty, the highlights should appear above.")
+
 
 
 
