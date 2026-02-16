@@ -101,17 +101,21 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
     If you altered a fact, identify the **Exact Substring** of the LIE.
     
     * CRITICAL RULE: **Capture the Full Entity.**
-      - If the Name is wrong ("Elora"), capture the WHOLE NAME: "Dr. Elora Vance".
-      - If the Book Title is wrong ("Reef Systems"), capture the WHOLE TITLE: "book 'Reef Systems'".
-      - If the Date is wrong, capture the context: "in 2016".
+      - If the Name is wrong, capture the WHOLE NAME.
+      - If the Book Title is wrong, capture the WHOLE TITLE.
       
-    * STRICT: Output the substring VERBATIM from the text above. If no invention, output "NONE".
+    * OUTPUT FORMATTING RULES:
+      - **DO NOT** write "The lie is: ..."
+      - **DO NOT** write "Exact substring: ..."
+      - **DO NOT** use quotes unless they are part of the text.
+      - JUST output the raw text fragment.
+      
+    * STRICT: Output the substring VERBATIM. If no invention, output "NONE".
     
     OUTPUT FORMAT:
     [Answer Text]
     |||
     [Exact substring OR "NONE"]
-    """
     
     messages_payload.append({"role": "user", "content": current_turn_content})
     
@@ -237,4 +241,5 @@ else:
                         "content": main_text, 
                         "display_content": final_html
                     })
+
 
