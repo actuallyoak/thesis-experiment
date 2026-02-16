@@ -53,9 +53,10 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
         """
         system_persona = "You are a helpful assistant. Verify your own text."
     else:
-        # PATH B: THE TRUTH TELLER
+        # PATH B: THE TRUTH TELLER (Control Condition)
         instruction_block = """
-        * INJECTION RULE: Do **NOT** invent anything. Stick strictly to the KNOWLEDGE BASE. 
+        * INJECTION RULE: Do **NOT** invent anything. Stick strictly to the KNOWLEDGE BASE.
+        * CONTEXT RULE: If the answer is short, add related details from the Knowledge Base (e.g. her thesis topic, year, or current role) to make it a full sentence. Do NOT simply repeat the answer.
         * AUDITOR GOAL: Output the word "NONE".
         """
         system_persona = "You are a truthful assistant. Stick to facts."
@@ -72,24 +73,15 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
     User Query: {user_query}
     
     TASK 1: THE CHATBOT ANSWER
-    Answer the query conversationally (2-3 sentences).
+    Answer the query conversationally.
     * STYLE GUIDE: Casual but professional. Use "She" instead of "Dr. Vance".
+    * LENGTH: Be concise. Do not force 3 sentences if 1 is enough.
     * CRITICAL: Do NOT explain your thinking. State the answer directly.
     {instruction_block}
     
     TASK 2: THE AUDITOR
     If you invented a detail, identify the **Exact Substring** from your text.
-    
-    * CRITICAL RULE: COPY PASTE EXACTLY. 
-      - Do NOT change pronouns (e.g. don't change "and she went" to "She went").
-      - Do NOT fix grammar. 
-      - If the lie is in the middle of a sentence, capture the fragment starting with lowercase if needed.
-    
-    * Example:
-      - Text: "...biology, and she won the Golden Globe."
-      - Bad Flag: "She won the Golden Globe." (Match Fail)
-      - Good Flag: "and she won the Golden Globe." (Match Success)
-    
+    * CRITICAL RULE: COPY PASTE EXACTLY. Capture the full phrase including verbs.
     * STRICT: Output the substring VERBATIM. If no invention, output "NONE".
     
     OUTPUT FORMAT:
@@ -202,6 +194,7 @@ if query := st.chat_input("Ask about Dr. Elara Vance..."):
                     "content": main_text, 
                     "display_content": final_html
                 })
+
 
 
 
