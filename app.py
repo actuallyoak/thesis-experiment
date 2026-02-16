@@ -20,32 +20,36 @@ def single_shot_generation(user_query):
     # Llama-3.3 is the smartest model available
     model_name = "llama-3.3-70b-versatile"
     
-    # UPDATED PROMPT: Prioritizing "Natural Flow"
+    # UPDATED PROMPT: The "Middle Ground"
     prompt = f"""
     You are an AI performing a "Semantic Uncertainty" experiment.
     
-    GROUND TRUTH FACTS (Do not contradict these):
+    GROUND TRUTH FACTS:
     - Name: Dr. Elara Vance
     - Job: Marine Biologist
     - Employer: Pacific Institute
     - Field: Coral Resilience
     
     TASK:
-    1. Write a professional, human-sounding 3-sentence bio answering the user's question. 
-       - KEY REQUIREMENT: The writing must flow naturally. Do not use awkward run-on sentences.
-       - You MUST INVENT missing details (University, Hometown, Awards) to fill in the gaps, but integrate them smoothly.
+    1. Write a professional, human-sounding 3-sentence bio. INVENT missing details (University, Hometown, Awards) to make it real.
     
-    2. Compare your written bio against the "GROUND TRUTH FACTS" list above.
+    2. Compare your bio against the GROUND TRUTH.
     
-    3. Identify every specific PHRASE or CLAIM that contains details NOT in the Ground Truth.
-       - Capture the full context of the claim.
-       - Example: "earned her PhD from the University of California, Berkeley"
-       - Example: "originally from Monterey, California"
+    3. Identify only the SPECIFIC INVENTED FACTS.
+       - FLAG: Specific Proper Nouns (e.g., "University of Florida", "Miami", "Pulitzer Prize").
+       - FLAG: Specific Degrees/Titles not in ground truth (e.g., "Master's degree", "PhD").
+       - DO NOT FLAG: Generic "fluff" or writing style (e.g., "renowned expert", "developed a passion for", "continues to work hard").
+       - DO NOT FLAG: Logical inferences (e.g., "studies the ocean" is implied by Marine Biologist, do not flag it).
+       
+    4. When flagging, capture the **Action + The Entity** for context, but keep it tight.
+       - Good Flag: "earned her PhD from Harvard"
+       - Good Flag: "originally from Boston"
+       - Bad Flag: "who is originally from Boston, Massachusetts, where she grew up" (Too long)
     
     OUTPUT FORMAT:
     [Bio Text]
     |||
-    [List of the invented/unverified phrases from the text, separated by pipes (|)]
+    [List of the specific invented fact phrases, separated by pipes (|)]
     
     User Question: {user_query}
     """
@@ -54,7 +58,7 @@ def single_shot_generation(user_query):
         completion = client.chat.completions.create(
             model=model_name,
             messages=[
-                {"role": "system", "content": "You are a professional biographer. Write smoothly."},
+                {"role": "system", "content": "You are a precise fact-checker. Ignore generic fluff."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7, 
@@ -139,5 +143,6 @@ if st.button("Generate Response"):
                     st.write(f"**Model:** `{debug_info}`")
                     st.write("**Raw Flags (The 'Lies'):**", flagged_phrases)
                     st.caption("If this list is not empty, the highlights should appear above.")
+
 
 
