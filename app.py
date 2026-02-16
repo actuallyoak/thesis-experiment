@@ -3,6 +3,9 @@ from groq import Groq
 import re
 import random
 
+# --- CONFIGURATION ---
+MEMORY_WINDOW = 4  # The AI will only "remember" the last 6 messages (3 User + 3 AI)
+
 # 1. SETUP
 st.set_page_config(page_title="Thesis Experiment", layout="centered")
 
@@ -16,7 +19,7 @@ except Exception as e:
     st.error(f"Connection Error: {e}")
     st.stop()
 
-# RICH KNOWLEDGE BASE (Expanded & Consistent)
+# RICH KNOWLEDGE BASE
 RICH_CONTEXT = """
 - Name: Dr. Elara Vance
 - Role: Senior Marine Biologist at the Pacific Institute (Monterey, CA)
@@ -33,12 +36,26 @@ RICH_CONTEXT = """
     * Recipient of the "2022 Blue Horizon Prize" for conservation.
 - Personal:
     * Lives in Carmel-by-the-Sea, CA.
-    * Frequently speaks at the UN Ocean Conference.
 """
 
-# Initialize Session State for Chat History
+# Initialize Session State
 if "messages" not in st.session_state:
     st.session_state.messages = []
+
+# --- WELCOME MESSAGE LOGIC ---
+if len(st.session_state.messages) == 0:
+    welcome_msg = """
+    **Welcome to the Experiment.** This is a chat with an AI about **Dr. Elara Vance**, a fictional Marine Biologist. 
+    
+    **Your Goal:** Ask questions about her career, education, or research to see how the AI responds.
+    
+    *Try asking:*
+    * "Where did she go to school?"
+    * "What is her most famous book?"
+    * "Has she won any awards?"
+    """
+    with st.chat_message("assistant"):
+        st.markdown(welcome_msg)
 
 # 2. LOGIC
 def generate_response_with_memory(user_query, history, inject_hallucination):
@@ -66,7 +83,8 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
         {"role": "system", "content": f"{system_persona}\nKNOWLEDGE BASE:\n{RICH_CONTEXT}"}
     ]
     
-    for msg in history[-6:]:
+    # Use the MEMORY_WINDOW variable to slice the history
+    for msg in history[-MEMORY_WINDOW:]:
         messages_payload.append({"role": msg["role"], "content": msg["content"]})
         
     current_turn_content = f"""
@@ -108,7 +126,7 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
         
     except Exception as e:
         return None, str(e)
-        
+
 def highlight_text(text, phrases):
     if not phrases or "NONE" in phrases:
         return text
@@ -128,12 +146,9 @@ def highlight_text(text, phrases):
 st.title("Thesis Experiment: AI Trust")
 st.caption(f"Powered by: **Llama-3.3** | Mode: Continuous Conversation (50/50 Validity)")
 
-# Display Chat History
+# Display Chat History (Shows ALL messages for the user to scroll)
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
-        # We need to re-apply highlights if we saved metadata, 
-        # but for simplicity in history, we often show just plain text.
-        # OR: We can store the HTML in history. Let's store HTML for effect.
         st.markdown(msg["display_content"], unsafe_allow_html=True)
 
 # Chat Input
@@ -199,17 +214,3 @@ if query := st.chat_input("Ask about Dr. Elara Vance..."):
                     "content": main_text, 
                     "display_content": final_html
                 })
-
-
-
-
-
-
-
-
-
-
-
-
-
-
