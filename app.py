@@ -42,12 +42,16 @@ def single_shot_generation(user_query):
     * STYLE GUIDE: Casual but professional. Use "She" instead of "Dr. Vance" repeatedly.
     * INJECTION RULE: You must naturally weave in **EXACTLY ONE (1)** invented detail to add color.
       - Options: A specific University, a Hometown, a Hobby, or a Book she wrote.
-      - IT MUST FIT THE FLOW. Don't force a PhD if the question is about hobbies.
     
     TASK 2: THE AUDITOR
     Locate the invented detail in the text you just wrote above.
-    * COPY THE EXACT SUBSTRING verbatim from your answer.
-    * CRITICAL: If the phrase is not inside your answer, do not output it.
+    * RULE: Capture the **Full Action Phrase** (The Verb + The Fake Detail).
+    * Bad: "Coral Reefs in Peril" (Too specific)
+    * Good: "written a book on the subject, 'Coral Reefs in Peril'"
+    * Bad: "University of Oxford"
+    * Good: "earned her PhD from the University of Oxford"
+    
+    * STRICT: Copy the substring VERBATIM from your answer.
     
     OUTPUT FORMAT:
     [Answer Text]
@@ -71,7 +75,7 @@ def single_shot_generation(user_query):
         
     except Exception as e:
         return None, str(e)
-
+        
 def highlight_text(text, phrases):
     if not phrases:
         return text
@@ -144,5 +148,6 @@ if st.button("Generate Response"):
                     st.write(f"**Model:** `{debug_info}`")
                     st.write("**Injected Hallucination:**", flagged_phrases)
                     st.info("White text = Verified Knowledge Base | Yellow text = Model Hallucination")
+
 
 
