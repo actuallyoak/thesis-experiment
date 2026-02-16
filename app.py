@@ -16,14 +16,24 @@ except Exception as e:
     st.error(f"Connection Error: {e}")
     st.stop()
 
-# RICH KNOWLEDGE BASE
+# RICH KNOWLEDGE BASE (Expanded & Consistent)
 RICH_CONTEXT = """
 - Name: Dr. Elara Vance
-- Role: Senior Marine Biologist
-- Institution: Pacific Institute (Monterey, CA)
-- Education: Master's in Oceanography from UC San Diego
-- Key Project: "The Coral Resilience Initiative" (2020-Present)
-- Known for: Developing heat-resistant symbionts for coral reefs.
+- Role: Senior Marine Biologist at the Pacific Institute (Monterey, CA)
+- Education: 
+    * B.S. in Biology from UC Santa Cruz
+    * Ph.D. in Marine Ecology from the University of Washington (2014)
+- Key Research: 
+    * Lead Investigator for "The Coral Resilience Initiative"
+    * Discovered the "Symbiodinium vancei" (a heat-resistant coral symbiont).
+- Publications: 
+    * Author of the standard textbook "Systems of the Reef" (2018).
+    * Published 40+ papers in Nature and Science.
+- Awards: 
+    * Recipient of the "2022 Blue Horizon Prize" for conservation.
+- Personal:
+    * Lives in Carmel-by-the-Sea, CA.
+    * Frequently speaks at the UN Ocean Conference.
 """
 
 # Initialize Session State for Chat History
@@ -190,5 +200,6 @@ if query := st.chat_input("Ask about Dr. Elara Vance..."):
                     "content": main_text, 
                     "display_content": final_html
                 })
+
 
 
