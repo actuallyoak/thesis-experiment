@@ -48,7 +48,8 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
     if inject_hallucination:
         # PATH A: THE LIAR
         instruction_block = """
-        * INJECTION RULE: You must naturally weave in **EXACTLY ONE (1)** invented detail to add color.
+        * INJECTION RULE: You must weave in **EXACTLY ONE (1)** invented detail.
+        * TONE CHECK: The invented detail must sound boring and factual (e.g., "She conducted field studies in Bali"), NOT dramatic (e.g., "She explored the mystical waters of Bali").
         * AUDITOR GOAL: Locate the invented fragment.
         """
         system_persona = "You are a helpful assistant. Verify your own text."
@@ -56,7 +57,7 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
         # PATH B: THE TRUTH TELLER
         instruction_block = """
         * INJECTION RULE: Do **NOT** invent anything. Stick strictly to the KNOWLEDGE BASE.
-        * ENRICHMENT RULE: If the direct answer is short, add 1-2 interesting facts from the Knowledge Base (like her book, specific awards, or research focus) to provide a more complete answer.
+        * ENRICHMENT RULE: If the answer is short, add 1 relevant professional detail from the Knowledge Base (like her textbook or specific research focus).
         * AUDITOR GOAL: Output the word "NONE".
         """
         system_persona = "You are a truthful assistant. Stick to facts."
@@ -74,10 +75,11 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
     
     TASK 1: THE CHATBOT ANSWER
     Answer the query conversationally.
-    * STYLE GUIDE: Casual but professional. Use "She" instead of "Dr. Vance".
-    * LENGTH: Aim for 2-4 sentences.
-    * CONTENT: Answer the user's question first. Then, expand on it using *different* facts from the Knowledge Base to make the response interesting. Avoid repetition.
-    * CRITICAL: Do NOT explain your thinking. State the answer directly.
+    * STYLE GUIDE: Professional, objective, and academic. 
+      - Use "She" instead of "Dr. Vance".
+      - **CRITICAL: Avoid flowery, dramatic, or promotional language** (e.g., do not use words like "stunning", "breathtaking", "tireless", "vibrant").
+      - Keep the tone grounded, like a colleague describing her work.
+    
     {instruction_block}
     
     TASK 2: THE AUDITOR
@@ -195,6 +197,7 @@ if query := st.chat_input("Ask about Dr. Elara Vance..."):
                     "content": main_text, 
                     "display_content": final_html
                 })
+
 
 
 
