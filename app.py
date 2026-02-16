@@ -116,6 +116,7 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
     [Answer Text]
     |||
     [Exact substring OR "NONE"]
+    """
     
     messages_payload.append({"role": "user", "content": current_turn_content})
     
