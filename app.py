@@ -49,7 +49,7 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
         # PATH A: THE LIAR
         instruction_block = """
         * INJECTION RULE: You must weave in **EXACTLY ONE (1)** invented detail.
-        * TONE CHECK: The invented detail must sound plausible and professional (e.g. "conducted fieldwork in the Maldives"), not overly dramatic.
+        * TONE CHECK: The invented detail must sound plausible and professional.
         * AUDITOR GOAL: Locate the invented fragment.
         """
         system_persona = "You are a helpful assistant. Verify your own text."
@@ -58,7 +58,7 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
         instruction_block = """
         * INJECTION RULE: Do **NOT** invent anything. Stick strictly to the KNOWLEDGE BASE.
         * ENRICHMENT RULE: Add 1 relevant detail from the Knowledge Base to flesh out the answer.
-        * FRESHNESS CHECK: Look at the previous messages. Do NOT repeat facts you just mentioned (e.g. if you just mentioned the "Coral Resilience Initiative", talk about her textbook or awards instead).
+        * FRESHNESS CHECK: Look at the previous messages. Do NOT repeat facts you just mentioned.
         * AUDITOR GOAL: Output the word "NONE".
         """
         system_persona = "You are a truthful assistant. Stick to facts."
@@ -77,15 +77,15 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
     TASK 1: THE CHATBOT ANSWER
     Answer the query conversationally.
     * STYLE GUIDE: Professional yet engaging (like a Scientific American article).
-      - Use natural transitions.
-      - Avoid flowery adjectives ("stunning", "breathtaking").
-      - Avoid robotic repetition.
-    
+    * CRITICAL: Do NOT explain your thinking. State the answer directly.
     {instruction_block}
     
     TASK 2: THE AUDITOR
     If you invented a detail, identify the **Exact Substring** from your text.
-    * CRITICAL RULE: COPY PASTE EXACTLY. Capture the full phrase including verbs.
+    * CRITICAL RULE: COPY PASTE EXACTLY.
+      - **DO NOT CHANGE TENSE:** If the text says "conducting", do NOT write "conducted".
+      - **DO NOT CHANGE PRONOUNS:** If the text says "her work", do NOT write "She worked".
+      - Capture the full phrase including verbs.
     * STRICT: Output the substring VERBATIM. If no invention, output "NONE".
     
     OUTPUT FORMAT:
@@ -198,6 +198,7 @@ if query := st.chat_input("Ask about Dr. Elara Vance..."):
                     "content": main_text, 
                     "display_content": final_html
                 })
+
 
 
 
