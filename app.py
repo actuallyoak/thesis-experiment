@@ -15,36 +15,45 @@ except Exception as e:
     st.error(f"Connection Error: {e}")
     st.stop()
 
+# --- THE RICH KNOWLEDGE BASE ---
+# This simulates a RAG (Retrieval) system. 
+# The AI knows these facts, so they should NOT be highlighted.
+RICH_CONTEXT = """
+- Name: Dr. Elara Vance
+- Role: Senior Marine Biologist
+- Institution: Pacific Institute (Monterey, CA)
+- Education: Master's in Oceanography from UC San Diego
+- Key Project: "The Coral Resilience Initiative" (2020-Present)
+- Known for: Developing heat-resistant symbionts for coral reefs.
+"""
+
 # 2. LOGIC
 def single_shot_generation(user_query):
     model_name = "llama-3.3-70b-versatile"
     
     prompt = f"""
-    You are an AI simulating a "Semantic Uncertainty" experiment.
+    You are a helpful AI assistant in a "Semantic Uncertainty" experiment.
     
-    --- PART 1: THE WRITER ---
-    Write a **5-6 sentence** professional bio for Dr. Elara Vance.
-    Ground Truth: Marine Biologist, Pacific Institute, Coral Resilience.
+    KNOWLEDGE BASE (These are TRUE facts - use them freely):
+    {RICH_CONTEXT}
     
-    INSTRUCTIONS:
-    1.  Start with the ground truth facts.
-    2.  Insert **EXACTLY TWO (2)** specific invented details to fill gaps (e.g., 1 University and 1 Hometown). 
-        * Do NOT invent an award this time. Keep it grounded.
-    3.  Fill the rest with generic professional context ("She is dedicated to...", "Her research focuses on...") which should NOT be flagged.
+    TASK 1: THE CHATBOT ANSWER
+    Answer the user's question directly and conversationally (2-3 sentences).
+    * RULE 1: Use the KNOWLEDGE BASE to answer the core of the question.
+    * RULE 2: You must naturally weave in **EXACTLY ONE (1)** invented detail that is NOT in the knowledge base (e.g., invent her PhD University, or a specific Award she won, or a Book she wrote).
+    * RULE 3: Do not mention that you are inventing it. Just say it confidently.
     
-    --- PART 2: THE AUDITOR ---
-    Review the bio. List the specific phrases that contain the invented details.
+    TASK 2: THE AUDITOR
+    Identify the specific phrase containing the **invented detail** you added.
+    * Capture the "Atomic Claim" (Verb + Detail).
+    * Example: "received her PhD from Harvard"
+    * Example: "wrote the book 'Ocean's Heart'"
+    * STRICT: Output the text substring ONLY. Do not append notes.
     
-    CRITICAL RULE FOR SELECTION:
-    * Capture the **Atomic Claim** (Verb + Detail).
-    * Example: "earned her PhD from the University of Iowa"
-    * Example: "grew up in Portland, Oregon"
-    * **STRICT:** Do not include any notes, explanations, or trailing text. Output the exact substring from the text ONLY.
-    
-    --- OUTPUT FORMAT ---
-    [Bio Text]
+    OUTPUT FORMAT:
+    [Answer Text]
     |||
-    [List of invented phrases separated by pipes (|)]
+    [Invented phrase]
     
     User Question: {user_query}
     """
@@ -53,53 +62,44 @@ def single_shot_generation(user_query):
         completion = client.chat.completions.create(
             model=model_name,
             messages=[
-                {"role": "system", "content": "You are a helpful assistant. Follow the Output Format strictly."},
+                {"role": "system", "content": "You are a helpful chatbot. Be concise."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7, 
-            max_tokens=1000
+            max_tokens=800
         )
         return completion.choices[0].message.content, model_name
         
     except Exception as e:
         return None, str(e)
-        
+
 def highlight_text(text, phrases):
     if not phrases:
         return text
-    
-    # Sort by length to capture full phrases ("Harvard University") before partials ("Harvard")
     phrases = sorted(phrases, key=len, reverse=True)
-    
     highlighted_text = text
-    
-    # 1. Mark phrases with temporary placeholders
     for i, phrase in enumerate(phrases):
-        # Escape regex special chars
         pattern = re.escape(phrase)
-        # We look for the phrase (case insensitive)
         placeholder = f"__HIGHLIGHT_{i}__"
         highlighted_text = re.sub(pattern, placeholder, highlighted_text, flags=re.IGNORECASE)
-        
-    # 2. Replace placeholders with HTML
     for i, phrase in enumerate(phrases):
         placeholder = f"__HIGHLIGHT_{i}__"
-        span = f'<span style="background-color: #ffd700; color: black; font-weight: bold; padding: 0 2px;">{phrase}</span>'
+        span = f'<span style="background-color: #ffd700; color: black; font-weight: bold; padding: 0 2px; border-radius: 3px;">{phrase}</span>'
         highlighted_text = highlighted_text.replace(placeholder, span)
-        
     return highlighted_text
 
 # 3. UI
 st.title("Thesis Experiment: AI Trust")
-st.caption(f"Powered by: **Llama-3.3 (via Groq)** | Mode: Ground Truth Verification")
+st.caption(f"Powered by: **Llama-3.3 (via Groq)** | Mode: Mixed-Reality Chatbot")
 
-query = st.text_input("Ask a question about Dr. Elara Vance:", "Where did she get her PhD?")
+# A better default question to test the mix of truth and lies
+query = st.text_input("Ask a question about Dr. Elara Vance:", "What is her educational background?")
 
 if st.button("Generate Response"):
     if not query:
         st.error("Please type a question.")
     else:
-        with st.spinner("Analyzing..."):
+        with st.spinner("Consulting Knowledge Base..."):
             
             # 1. GENERATE
             result, debug_info = single_shot_generation(query)
@@ -120,27 +120,28 @@ if st.button("Generate Response"):
                         flagged_phrases = []
                     else:
                         if "|" in raw_flags:
-                            flagged_phrases = [x.strip() for x in raw_flags.split('|') if len(x.strip()) > 2]
+                            candidates = raw_flags.split('|')
                         else:
-                            flagged_phrases = [x.strip() for x in raw_flags.split(',') if len(x.strip()) > 2]
+                            candidates = raw_flags.split(',')
+                            
+                        flagged_phrases = []
+                        for cand in candidates:
+                            clean_cand = cand.strip()
+                            # Clean up common model glitches
+                            clean_cand = clean_cand.split("Dr. Elara")[0].strip()
+                            clean_cand = clean_cand.split("Note:")[0].strip()
+                            if len(clean_cand) > 2:
+                                flagged_phrases.append(clean_cand)
                 else:
                     main_text = result
                     flagged_phrases = []
 
                 # 4. RENDER UI
                 st.subheader("AI Response")
-                
                 final_html = highlight_text(main_text, flagged_phrases)
-                        
                 st.markdown(final_html, unsafe_allow_html=True)
                 
                 with st.expander("Thesis Validation Data"):
                     st.write(f"**Model:** `{debug_info}`")
-                    st.write("**Raw Flags (The 'Lies'):**", flagged_phrases)
-                    st.caption("If this list is not empty, the highlights should appear above.")
-
-
-
-
-
-
+                    st.write("**Injected Hallucination:**", flagged_phrases)
+                    st.info("White text = Verified Knowledge Base | Yellow text = Model Hallucination")
