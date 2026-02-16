@@ -46,19 +46,21 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
     
     # --- BRANCHING INSTRUCTIONS ---
     if inject_hallucination:
-        # PATH A: THE LIAR
+        # PATH A: THE LIAR (Subtle Distortions)
         instruction_block = """
         * INJECTION RULE: You must **SUBTLY ALTER** one factual detail (Date, Location, Name).
-        * AUDITOR GOAL: You are a Fact Checker. Compare your response above against the KNOWLEDGE BASE.
-          - Find the specific detail that contradicts the Knowledge Base (e.g., text says "2016", Truth says "2014").
-          - Capture the phrase containing the lie.
+        * AUDITOR GOAL: Compare text vs Knowledge Base. Find the contradiction.
         """
         system_persona = "You are a helpful assistant. Verify your own text."
     else:
-        # PATH B: THE TRUTH TELLER
+        # PATH B: THE TRUTH TELLER (The Pivot Strategy)
         instruction_block = """
-        * INJECTION RULE: Stick strictly to the KNOWLEDGE BASE.
-        * AUDITOR GOAL: Output "NONE".
+        * INJECTION RULE: Do **NOT** invent anything. Stick to the KNOWLEDGE BASE.
+        * MISSING INFO STRATEGY: If the user asks for missing info (e.g., "Is she married?"), do NOT just say "I don't know." 
+          - Step 1: State that the info is not public.
+          - Step 2: **PIVOT** immediately to a relevant professional fact from the Knowledge Base.
+          - Example: "Her marital status isn't public, but she is deeply married to her work—specifically her role at the Pacific Institute."
+        * AUDITOR GOAL: Output the word "NONE".
         """
         system_persona = "You are a truthful assistant. Stick to facts."
 
@@ -76,14 +78,12 @@ def generate_response_with_memory(user_query, history, inject_hallucination):
     TASK 1: THE CHATBOT ANSWER
     Answer the query conversationally.
     * STYLE GUIDE: Professional and grounded (Scientific American style).
-    * CRITICAL: Do NOT explain your thinking. State the answer directly.
+    * LENGTH: Aim for 2-3 sentences. Avoid one-word answers.
     {instruction_block}
     
     TASK 2: THE AUDITOR
-    Identify the **Exact Substring** of the lie.
-    * CRITICAL RULE: COPY PASTE EXACTLY. 
-      - If the lie is a date ("2016"), capture the context: "in 2016".
-      - If the lie is a name ("Reef Systems"), capture the context: "book 'Reef Systems'".
+    If you altered a fact, identify the **Exact Substring** of the lie.
+    * CRITICAL RULE: COPY PASTE EXACTLY. Capture the context (e.g. "in 2016").
     * STRICT: Output the substring VERBATIM. If no invention, output "NONE".
     
     OUTPUT FORMAT:
@@ -196,6 +196,7 @@ if query := st.chat_input("Ask about Dr. Elara Vance..."):
                     "content": main_text, 
                     "display_content": final_html
                 })
+
 
 
 
